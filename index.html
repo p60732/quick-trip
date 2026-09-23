@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d9531e">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>說走就走小旅行</title>
+<link rel="stylesheet" href="css/style.css?v=ff0080e3">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>說走就走小旅行</h1>
+    <p>選一個想去的點，讓 Claude 把附近好玩、好吃的一起排進去。</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
+    <button type="button" role="tab" id="tab-saved" aria-selected="false">我的行程 <span id="saved-count"></span></button>
+  </nav>
+
+  <!-- 規劃 -->
+  <section id="view-plan">
+    <div class="card">
+      <h2 class="step-h"><span class="step-n">1</span>想去哪、怎麼去</h2>
+
+      <label class="f"><span>主要目的地 <small>（一定要去的那個點）</small></span>
+        <input type="text" id="f-destination" maxlength="100" placeholder="例：高雄 鈴鹿賽道樂園" autocomplete="off">
+      </label>
+
+      <label class="f"><span>還想順便去／吃 <small>（選填）</small></span>
+        <input type="text" id="f-mustDo" maxlength="200" placeholder="例：想吃鹽埕區的老店、想看海" autocomplete="off">
+      </label>
+
+      <div class="row">
+        <label class="f"><span>出發日期</span><input type="date" id="f-date"></label>
+        <div class="f"><span class="lbl">天數</span>
+          <div class="seg" id="f-days">
+            <button type="button" data-v="1" aria-pressed="true">一日來回</button>
+            <button type="button" data-v="2" aria-pressed="false">兩天一夜</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="f"><span>出發地</span>
+        <input type="text" id="f-origin" maxlength="100" autocomplete="off">
+        <div class="chips" id="origin-chips">
+          <button type="button" class="chip" data-v="高鐵新竹站">高鐵新竹站</button>
+          <button type="button" class="chip" data-v="台鐵新竹站">台鐵新竹站</button>
+          <button type="button" class="chip" data-v="新竹市區（開車）">新竹開車</button>
+        </div>
+      </label>
+
+      <label class="f"><span>交通方式</span>
+        <select id="f-transport">
+          <option>高鐵＋當地大眾運輸</option>
+          <option>高鐵＋當地計程車／叫車</option>
+          <option>高鐵＋當地租車</option>
+          <option>台鐵＋當地大眾運輸</option>
+          <option>自行開車</option>
+          <option>客運</option>
+        </select>
+      </label>
+
+      <div class="row">
+        <label class="f"><span>最早出發</span><input type="time" id="f-leaveAt"></label>
+        <label class="f"><span>最晚回到出發地</span><input type="time" id="f-backBy"></label>
+      </div>
+
+      <div class="row stack">
+        <label class="f"><span>人數</span><input type="number" id="f-people" min="1" max="20" inputmode="numeric"></label>
+        <label class="f"><span>同行</span>
+          <select id="f-who">
+            <option value="">自己</option>
+            <option>情侶／夫妻</option>
+            <option>朋友</option>
+            <option>帶小孩</option>
+            <option>帶長輩</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="f"><span class="lbl">步調</span>
+        <div class="seg" id="f-pace">
+          <button type="button" data-v="悠閒，景點少一點、多留休息時間" aria-pressed="false">悠閒</button>
+          <button type="button" data-v="剛好，景點與休息平衡" aria-pressed="true">剛好</button>
+          <button type="button" data-v="塞滿，能去的都去" aria-pressed="false">塞滿</button>
+        </div>
+      </div>
+
+      <div class="f"><span class="lbl">想吃什麼 <small>（可複選）</small></span>
+        <div class="chips" id="f-food">
+          <button type="button" class="chip" aria-pressed="false">在地小吃</button>
+          <button type="button" class="chip" aria-pressed="false">老字號</button>
+          <button type="button" class="chip" aria-pressed="false">夜市</button>
+          <button type="button" class="chip" aria-pressed="false">咖啡甜點</button>
+          <button type="button" class="chip" aria-pressed="false">海鮮</button>
+          <button type="button" class="chip" aria-pressed="false">不排隊</button>
+          <button type="button" class="chip" aria-pressed="false">素食</button>
+        </div>
+      </div>
+
+      <div class="row stack">
+        <label class="f"><span>每人預算 <small>（NT$，選填）</small></span><input type="number" id="f-budget" min="0" max="100000" inputmode="numeric" placeholder="例：3000"></label>
+        <label class="f"><span>其他備註 <small>（選填）</small></span><input type="text" id="f-extra" maxlength="200" placeholder="例：不想走太多路"></label>
+      </div>
+
+      <div class="btns"><button type="button" class="btn" id="btn-prompt">產生提示詞</button></div>
+      <div class="msg" id="msg-form" role="status"></div>
+    </div>
+
+    <div class="card locked" id="card-copy">
+      <h2 class="step-h"><span class="step-n">2</span>複製到 Claude</h2>
+      <p class="hint">按下後提示詞會複製好並打開 Claude，貼上送出就好。</p>
+      <textarea id="prompt-out" readonly aria-label="提示詞"></textarea>
+      <div class="btns mt">
+        <button type="button" class="btn" id="btn-copy-open">複製並開啟 Claude</button>
+        <button type="button" class="btn ghost" id="btn-copy">只複製</button>
+      </div>
+      <div class="msg" id="msg-copy" role="status"></div>
+    </div>
+
+    <div class="card locked" id="card-paste">
+      <h2 class="step-h"><span class="step-n">3</span>把 Claude 的回答貼回來</h2>
+      <p class="hint">在 Claude 回答的程式碼區塊右上角按「複製」，整段貼進來。</p>
+      <textarea id="paste-in" placeholder="把 Claude 的整段回答貼在這裡" aria-label="貼上 Claude 的回答"></textarea>
+      <div class="btns mt">
+        <button type="button" class="btn" id="btn-parse">排成行程</button>
+      </div>
+      <div class="msg" id="msg-parse" role="status"></div>
+    </div>
+  </section>
+
+  <!-- 行程結果 -->
+  <section id="view-result" class="hidden">
+    <div class="btns no-print mb">
+      <button type="button" class="btn small ghost" id="btn-back">← 回去修改</button>
+      <button type="button" class="btn small" id="btn-save">存到我的行程</button>
+      <button type="button" class="btn small ghost" id="btn-print">列印／存 PDF</button>
+    </div>
+    <div id="result"></div>
+  </section>
+
+  <!-- 我的行程 -->
+  <section id="view-saved" class="hidden">
+    <div id="saved-list"></div>
+  </section>
+
+  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。資料只存在這支手機的瀏覽器裡。</footer>
+</div>
+<script src="js/logic.js?v=b68b97cc"></script>
+<script src="js/ui.js?v=fabe4e82"></script>
+</body>
+</html>
