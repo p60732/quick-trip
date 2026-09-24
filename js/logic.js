@@ -8,9 +8,92 @@
     transport: '交通', sight: '景點', food: '正餐', snack: '小吃點心',
     lodging: '住宿', shop: '逛街', rest: '休息'
   };
-  var LIMIT = { str: 400, days: 3, items: 24, list: 12 };
+  var LIMIT = { str: 400, days: 3, items: 24, list: 12, wishes: 500 };
   var WEEK = ['日', '一', '二', '三', '四', '五', '六'];
   var FENCE = '\x60\x60\x60'; // 三個反引號（程式碼區塊標記）
+
+  /* ---------- 選單資料 ---------- */
+  var TW_REGIONS = [
+    { region: '北部', cities: ['台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '宜蘭縣'] },
+    { region: '中部', cities: ['苗栗縣', '台中市', '彰化縣', '南投縣', '雲林縣'] },
+    { region: '南部', cities: ['嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣'] },
+    { region: '東部', cities: ['花蓮縣', '台東縣'] },
+    { region: '離島', cities: ['澎湖縣', '金門縣', '連江縣'] }
+  ];
+  var TW_CITIES = TW_REGIONS.reduce(function (a, r) { return a.concat(r.cities); }, []);
+  var TRANSPORTS = ['高鐵', '台鐵', '客運', '捷運／公車', '計程車／叫車', '租車', '自行開車', '機車', '步行／腳踏車'];
+  var CAR_MODES = ['租車', '自行開車', '機車'];
+  var ORIGIN_TYPES = { home: '自家', station: '車站', hotel: '飯店', other: '其他' };
+  var STATIONS = [
+    '高鐵南港站', '高鐵台北站', '高鐵板橋站', '高鐵桃園站', '高鐵新竹站', '高鐵苗栗站', '高鐵台中站',
+    '高鐵彰化站', '高鐵雲林站', '高鐵嘉義站', '高鐵台南站', '高鐵左營站',
+    '台鐵台北站', '台鐵桃園站', '台鐵新竹站', '台鐵竹北站', '台鐵台中站', '台鐵嘉義站',
+    '台鐵台南站', '台鐵高雄站', '台鐵宜蘭站', '台鐵花蓮站', '台鐵台東站'
+  ];
+  var WISH_SCOPE = { domestic: '國內', abroad: '國外' };
+  var WISH_KIND = { eat: '吃的', play: '玩的' };
+
+  function isTwCity(c) { return TW_CITIES.indexOf(c) !== -1; }
+  // 從一段文字猜縣市（舊版草稿只有「高雄 鈴鹿賽道樂園」這種字串時用）
+  function guessCity(s) {
+    s = String(s || '').replace(/臺/g, '台');
+    for (var i = 0; i < TW_CITIES.length; i++) if (s.indexOf(TW_CITIES[i]) !== -1) return TW_CITIES[i];
+    for (var j = 0; j < TW_CITIES.length; j++) if (s.indexOf(TW_CITIES[j].slice(0, 2)) !== -1) return TW_CITIES[j];
+    return '';
+  }
+
+  /* ---------- 交通（可混合） ---------- */
+  // 新格式是陣列；舊版存的是一段字串（例「高鐵＋當地大眾運輸」），用關鍵字換算
+  function normTransport(v) {
+    if (Array.isArray(v)) {
+      return TRANSPORTS.filter(function (t) { return v.indexOf(t) !== -1; });
+    }
+    var s = String(v || ''), out = [];
+    if (/高鐵/.test(s)) out.push('高鐵');
+    if (/台鐵/.test(s)) out.push('台鐵');
+    if (/客運/.test(s)) out.push('客運');
+    if (/大眾運輸|捷運|公車/.test(s)) out.push('捷運／公車');
+    if (/計程車|叫車/.test(s)) out.push('計程車／叫車');
+    if (/租車/.test(s)) out.push('租車');
+    if (/開車/.test(s)) out.push('自行開車');
+    return TRANSPORTS.filter(function (t) { return out.indexOf(t) !== -1; });
+  }
+  // 站與站之間的導航：當地有車（開車／租車／機車／計程車）且沒選捷運公車 → driving，其餘 transit
+  function travelMode(v) {
+    var list = normTransport(v);
+    var car = list.some(function (t) { return CAR_MODES.indexOf(t) !== -1 || t === '計程車／叫車'; });
+    return car && list.indexOf('捷運／公車') === -1 ? 'driving' : 'transit';
+  }
+  function transportText(v) {
+    var list = normTransport(v);
+    if (!list.length) return '';
+    return list.length === 1 ? list[0] : '混合：' + list.join('＋');
+  }
+
+  /* ---------- 出發地 ---------- */
+  // 新格式 {type, text}；舊版是字串
+  function normOrigin(o) {
+    if (o && typeof o === 'object') {
+      var type = ORIGIN_TYPES[o.type] ? o.type : 'other';
+      return { type: type, text: clean_(o.text) };
+    }
+    var s = clean_(o);
+    return { type: /站/.test(s) ? 'station' : 'other', text: s };
+  }
+  function originText(o) {
+    var n = normOrigin(o);
+    if (!n.text) return '';
+    return n.type === 'other' ? n.text : ORIGIN_TYPES[n.type] + '（' + n.text + '）';
+  }
+  // 地圖用：只要地址或站名本身
+  function originPlace(o) { return normOrigin(o).text; }
+
+  /* ---------- 目的地 ---------- */
+  function destText(f) {
+    var city = clean_(f.city), place = clean_(f.destination);
+    if (city && place) return place.indexOf(city.slice(0, 2)) === 0 ? place : city + ' ' + place;
+    return city || place;
+  }
 
   /* ---------- 日期 ---------- */
   // today: 'YYYY-MM-DD'；回傳下一個星期六（今天是六就回今天）
@@ -47,8 +130,10 @@
   /* ---------- 表單驗證 ---------- */
   function validateForm(f) {
     var errs = [];
-    if (!clean_(f.destination)) errs.push('請填想去的主要地點');
-    if (!clean_(f.origin)) errs.push('請填出發地');
+    if (!isTwCity(f.city)) errs.push('請選擇要去的縣市');
+    var o = normOrigin(f.origin);
+    if (!o.text) errs.push(o.type === 'home' ? '請填家裡地址' : o.type === 'hotel' ? '請填飯店名稱' : '請填出發地');
+    if (!normTransport(f.transport).length) errs.push('請至少選一種交通方式');
     if (!parseYmd_(f.date)) errs.push('日期格式不對');
     if (f.days !== 1 && f.days !== 2) errs.push('天數只能是一日或兩天一夜');
     if (!(f.people >= 1 && f.people <= 20)) errs.push('人數請填 1–20');
@@ -63,14 +148,18 @@
     var dates = f.days === 2
       ? dayLabel(d1) + ' 出發，' + dayLabel(addDays(d1, 1)) + ' 回程（兩天一夜）'
       : dayLabel(d1) + ' 當天來回';
+    var picks = (Array.isArray(f.wishPicks) ? f.wishPicks : []).map(clean_).filter(Boolean).slice(0, 12);
+    var tlist = normTransport(f.transport);
     lines.push('請幫我規劃一趟台灣國內的說走就走小旅行，並把附近順路的好玩景點和好吃的餐廳、小吃一起排進去。');
     lines.push('');
     lines.push('【基本資料】');
-    lines.push('- 出發地：' + clean_(f.origin));
-    lines.push('- 主要目的地（一定要去）：' + clean_(f.destination));
+    lines.push('- 出發地：' + originText(f.origin));
+    lines.push('- 目的地縣市：' + clean_(f.city));
+    if (clean_(f.destination)) lines.push('- 主要想去（一定要去）：' + clean_(f.destination));
+    if (picks.length) lines.push('- 願望清單裡想順便去／吃（盡量排進去，排不進去就放到附近備選）：' + picks.join('、'));
     if (clean_(f.mustDo)) lines.push('- 其他指定想去／想吃：' + clean_(f.mustDo));
     lines.push('- 日期：' + dates);
-    lines.push('- 交通方式：' + clean_(f.transport));
+    lines.push('- 交通方式：' + tlist.join('、') + (tlist.length > 1 ? '（可以混合搭配，每一段選最順的）' : ''));
     if (f.leaveAt) lines.push('- 最早出發時間：' + f.leaveAt);
     if (f.backBy) lines.push('- 希望回到出發地的時間：' + f.backBy + ' 前');
     lines.push('- 人數：' + f.people + ' 人' + (clean_(f.who) ? '（' + clean_(f.who) + '）' : ''));
@@ -80,10 +169,10 @@
     if (clean_(f.extra)) lines.push('- 其他備註：' + clean_(f.extra));
     lines.push('');
     lines.push('【規劃要求】');
-    lines.push('1. 以主要目的地為中心，優先挑車程或步行 20 分鐘內的景點與餐廳，路線不要來回折返。');
+    lines.push('1. ' + (clean_(f.destination) ? '以主要想去的點為中心' : '在' + clean_(f.city) + '挑順路的一區') + '，優先挑車程或步行 20 分鐘內的景點與餐廳，路線不要來回折返。');
     lines.push('2. 用真實存在、目前仍營業的店家與景點；不確定是否還在營業、營業時間或需要預約的，在 note 寫明並把 verify 設為 true。');
-    lines.push('3. 時間表要包含：出發、每段交通（班次類型、轉乘方式、大約車程）、每個點的停留時間、午餐晚餐與點心。');
-    lines.push('4. 大眾運輸要寫出實際車站名稱（例如高鐵左營站、捷運站名、公車路線號碼）。');
+    lines.push('3. 時間表要包含：從出發地出發、每段交通（交通工具、轉乘方式、大約車程）、每個點的停留時間、午餐晚餐與點心。');
+    lines.push('4. 大眾運輸要寫出實際車站名稱（例如高鐵左營站、捷運站名、公車路線號碼）；開車要提醒停車。');
     lines.push('5. 另外列出 4–6 個「附近備選」：時間多出來或臨時不想去某站時可以替換的點。');
     if (f.days === 2) lines.push('6. 給 2–3 個住宿建議（區域或具體旅館皆可），說明為什麼選那一區。');
     lines.push((f.days === 2 ? '7' : '6') + '. 預算以「每人」新台幣估算，列出交通、門票、餐費' + (f.days === 2 ? '、住宿（以兩人一房平分）' : '') + '。');
@@ -223,28 +312,154 @@
     return u;
   }
 
+  /* ---------- 願望清單 ---------- */
+  // input: {name, scope, kind, city, note, url}；回傳 {ok, wish} 或 {ok:false, error}
+  function normalizeWish(input, id, addedYmd) {
+    var w = input && typeof input === 'object' ? input : {};
+    var name = clean_(w.name).slice(0, 100);
+    var scope = WISH_SCOPE[w.scope] ? w.scope : '';
+    var kind = WISH_KIND[w.kind] ? w.kind : '';
+    var city = clean_(w.city).slice(0, 60);
+    var url = clean_(w.url).slice(0, 500);
+    if (!name) return { ok: false, error: '請填想去的地方或店名' };
+    if (!scope) return { ok: false, error: '請選國內或國外' };
+    if (!kind) return { ok: false, error: '請選吃的或玩的' };
+    if (scope === 'domestic' && !isTwCity(city)) return { ok: false, error: '請選縣市' };
+    if (scope === 'abroad' && !city) return { ok: false, error: '請填國家或城市' };
+    if (url && !/^https?:\/\/[^\s]+$/i.test(url)) return { ok: false, error: '連結要是 http 或 https 開頭' };
+    return {
+      ok: true,
+      wish: {
+        id: String(id || ''), name: name, scope: scope, kind: kind, city: city,
+        note: clean_(w.note).slice(0, 200), url: url, done: w.done === true,
+        added: /^\d{4}-\d{2}-\d{2}$/.test(String(addedYmd || w.added || '')) ? String(addedYmd || w.added) : ''
+      }
+    };
+  }
+  // 讀回 localStorage 的清單時再清洗一次，壞掉的丟掉
+  function cleanWishes(list) {
+    return (Array.isArray(list) ? list : []).slice(0, LIMIT.wishes).map(function (w) {
+      var r = normalizeWish(w, w && w.id);
+      return r.ok && r.wish.id ? r.wish : null;
+    }).filter(Boolean);
+  }
+  // opt: {scope, kind:'all'|'eat'|'play', showDone}
+  function filterWishes(list, opt) {
+    opt = opt || {};
+    return (Array.isArray(list) ? list : []).filter(function (w) {
+      if (opt.scope && w.scope !== opt.scope) return false;
+      if (opt.kind && opt.kind !== 'all' && w.kind !== opt.kind) return false;
+      if (!opt.showDone && w.done) return false;
+      return true;
+    });
+  }
+  // 依城市分組；國內照縣市選單順序，國外照名稱
+  function groupWishes(list) {
+    var map = {}, keys = [];
+    (Array.isArray(list) ? list : []).forEach(function (w) {
+      if (!map[w.city]) { map[w.city] = []; keys.push(w.city); }
+      map[w.city].push(w);
+    });
+    keys.sort(function (a, b) {
+      var ia = TW_CITIES.indexOf(a), ib = TW_CITIES.indexOf(b);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return keys.map(function (k) { return { city: k, items: map[k] }; });
+  }
+  function wishesForCity(list, city) {
+    return (Array.isArray(list) ? list : []).filter(function (w) {
+      return w.scope === 'domestic' && w.city === city && !w.done;
+    });
+  }
+  function toggleDone(list, id) {
+    return (Array.isArray(list) ? list : []).map(function (w) {
+      if (w.id !== id) return w;
+      var c = {}; for (var k in w) c[k] = w[k];
+      c.done = !w.done;
+      return c;
+    });
+  }
+
+  /* ---------- 行程存檔清洗、備份匯出／匯入 ---------- */
+  var FORM_STR_KEYS = ['scope', 'city', 'destination', 'mustDo', 'date', 'leaveAt', 'backBy', 'who', 'pace', 'food', 'budget', 'extra'];
+  function cleanForm_(f) {
+    f = f && typeof f === 'object' ? f : {};
+    var out = {};
+    FORM_STR_KEYS.forEach(function (k) { if (f[k] != null) out[k] = clean_(f[k]); });
+    out.days = f.days === 2 ? 2 : 1;
+    out.people = f.people >= 1 && f.people <= 20 ? Math.floor(f.people) : 1;
+    out.origin = normOrigin(f.origin);
+    out.transport = normTransport(f.transport);
+    out.wishPicks = (Array.isArray(f.wishPicks) ? f.wishPicks : []).map(clean_).filter(Boolean).slice(0, 12);
+    return out;
+  }
+  // 一筆行程：id 必須是字串、plan 要能通過 parsePlan；壞的回 null
+  function cleanTrip(t) {
+    if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !/^[\w-]{1,40}$/.test(t.id)) return null;
+    var r = parsePlan(JSON.stringify(t.plan || null));
+    if (!r.ok) return null;
+    return {
+      id: t.id, savedDate: /^\d{4}-\d{2}-\d{2}$/.test(String(t.savedDate)) ? t.savedDate : '',
+      form: cleanForm_(t.form), plan: r.plan
+    };
+  }
+  function cleanTrips(list) {
+    return (Array.isArray(list) ? list : []).slice(0, 30).map(cleanTrip).filter(Boolean);
+  }
+  // 備份不含家裡地址（行程裡的出發地除外），檔案可能被傳來傳去
+  function buildBackup(trips, wishes, todayYmd) {
+    return JSON.stringify({
+      app: 'quick-trip', v: 1, exported: String(todayYmd || ''),
+      trips: cleanTrips(trips), wishes: cleanWishes(wishes)
+    }, null, 1);
+  }
+  function parseBackup(text) {
+    var raw = String(text || '');
+    if (raw.length > 5000000) return { ok: false, error: '檔案太大，不像是這個工具的備份' };
+    var d;
+    try { d = JSON.parse(raw); } catch (e) { return { ok: false, error: '檔案格式不對（不是 JSON）' }; }
+    if (!d || d.app !== 'quick-trip') return { ok: false, error: '這不是「說走就走小旅行」的備份檔' };
+    return { ok: true, trips: cleanTrips(d.trips), wishes: cleanWishes(d.wishes) };
+  }
+  // 合併：以匯入的為準（同 id 取代），原本有、匯入沒有的保留
+  function mergeById(existing, incoming, max) {
+    var out = [], seen = {};
+    (Array.isArray(incoming) ? incoming : []).concat(Array.isArray(existing) ? existing : []).forEach(function (x) {
+      if (x && x.id && !seen[x.id]) { seen[x.id] = true; out.push(x); }
+    });
+    return out.slice(0, max || 30);
+  }
+
   /* ---------- 存檔清單 ---------- */
   function makeId(seed) {
     var h = 5381, s = String(seed);
     for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return 't' + h.toString(36);
   }
-  // 回傳新陣列：同 id 取代，最新放最前，最多 30 筆
-  function upsertTrip(list, trip) {
+  // 回傳新陣列：同 id 取代，最新放最前，最多 max 筆（預設 30）
+  function upsertTrip(list, trip, max) {
     var out = [trip];
     (Array.isArray(list) ? list : []).forEach(function (t) { if (t && t.id !== trip.id) out.push(t); });
-    return out.slice(0, 30);
+    return out.slice(0, max || 30);
   }
   function removeTrip(list, id) {
     return (Array.isArray(list) ? list : []).filter(function (t) { return t && t.id !== id; });
   }
 
   var api = {
-    TYPES: TYPES, TYPE_LABEL: TYPE_LABEL,
+    TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, TW_REGIONS: TW_REGIONS, TW_CITIES: TW_CITIES,
+    TRANSPORTS: TRANSPORTS, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
+    WISH_SCOPE: WISH_SCOPE, WISH_KIND: WISH_KIND, WISH_MAX: LIMIT.wishes,
+    isTwCity: isTwCity, guessCity: guessCity, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
+    normOrigin: normOrigin, originText: originText, originPlace: originPlace, destText: destText,
     nextSaturday: nextSaturday, addDays: addDays, dayLabel: dayLabel,
     validateForm: validateForm, buildPrompt: buildPrompt, parsePlan: parsePlan,
     budgetTotal: budgetTotal, prevPlace: prevPlace,
     mapSearchUrl: mapSearchUrl, mapDirUrl: mapDirUrl,
+    normalizeWish: normalizeWish, cleanWishes: cleanWishes, filterWishes: filterWishes,
+    groupWishes: groupWishes, wishesForCity: wishesForCity, toggleDone: toggleDone,
+    cleanTrip: cleanTrip, cleanTrips: cleanTrips, buildBackup: buildBackup, parseBackup: parseBackup, mergeById: mergeById,
     makeId: makeId, upsertTrip: upsertTrip, removeTrip: removeTrip
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
