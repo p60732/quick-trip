@@ -1,7 +1,7 @@
 /* 連線積木：只負責跟 GAS 後端講話。統一回傳 data 或丟出帶中文訊息的 Error。 */
 (function () {
   'use strict';
-  var READS = { previewGroup: true, pull: true };   // 只有純讀取會自動重試；加入會建身分，不重送
+  var READS = { previewGroup: true, pull: true, me: true };   // 只有純讀取會自動重試；加入會建身分，不重送
   // 超過就放棄，避免「同步中…」卡住、輪詢停擺（測試可用 QT_CONFIG 調短）
   function cfg(k, d) { var c = window.QT_CONFIG || {}; return (typeof c[k] === 'number' && c[k] > 0) ? c[k] : d; }
 

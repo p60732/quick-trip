@@ -462,7 +462,7 @@
   // 旅伴裝置：有加入群組、但一個都不是自己建立的 → 不開放 AI 規劃
   function isGuestDevice(groups) {
     var gs = Array.isArray(groups) ? groups : [];
-    return gs.length > 0 && !gs.some(function (g) { return g && g.ownerKey; });
+    return gs.length > 0 && !gs.some(function (g) { return g && (g.role === 'owner' || g.ownerKey); });
   }
   function removeStop(plan, d, i) {
     return editPlan_(plan, function (p) {
@@ -553,23 +553,30 @@
   }
   function cleanNick(s) { return clean_(s).slice(0, 20); }
   var KEY_RE_ = /^[A-Za-z0-9]{16,64}$/, GID_RE_ = /^[A-Za-z0-9_-]{6,40}$/;
-  // 本機記住的群組清單：格式不對的丟掉；邀請碼、管理碼各自檢查
-  // memberId＋memberKey：這支手機在群組裡的專屬身分。舊版只有 key（邀請碼或管理碼），之後會自動補綁
+  // 群組清單（登入後以後端為準，這裡只是快取）：格式不對的丟掉
+  // 舊版（還沒登入時）留在手機上的邀請碼、管理碼、成員鑰匙也保留，登入後用來把身分搬到帳號上
   function cleanGroups(list) {
     var seen = {};
     return (Array.isArray(list) ? list : []).map(function (g) {
       if (!g || typeof g !== 'object' || !GID_RE_.test(g.groupId) || seen[g.groupId]) return null;
       var k = function (v) { return KEY_RE_.test(v) ? v : ''; };
-      var bound = GID_RE_.test(g.memberId) && KEY_RE_.test(g.memberKey);
-      if (!bound && !k(g.key) && !k(g.inviteKey) && !k(g.ownerKey)) return null;
+      var mid = GID_RE_.test(g.memberId) ? g.memberId : '';
+      var legacy = !!(k(g.key) || k(g.ownerKey) || (mid && k(g.memberKey)));
+      if (!mid && !legacy && !k(g.inviteKey)) return null;
       seen[g.groupId] = true;
       return {
-        groupId: g.groupId, name: cleanGroupName(g.name) || '未命名群組', key: k(g.key),
-        inviteKey: k(g.inviteKey), ownerKey: k(g.ownerKey),
-        memberId: bound ? g.memberId : '', memberKey: bound ? g.memberKey : '',
-        nick: cleanNick(g.nick) || '我'
+        groupId: g.groupId, name: cleanGroupName(g.name) || '未命名群組',
+        memberId: mid, role: g.role === 'owner' || k(g.ownerKey) ? 'owner' : 'member', inviteKey: k(g.inviteKey),
+        nick: cleanNick(g.nick) || '我', legacy: legacy,
+        key: k(g.key), ownerKey: k(g.ownerKey), memberKey: mid ? k(g.memberKey) : ''
       };
-    }).filter(Boolean).slice(0, 20);
+    }).filter(Boolean).slice(0, 30);
+  }
+  // 登入狀態：只記登入憑證和帳號名稱，不記密碼
+  function cleanAuth(a) {
+    if (!a || typeof a !== 'object' || !/^a[0-9a-f]{15}\.\d{1,6}\.\d{13}\.[0-9a-f]{32}$/.test(a.token)) return null;
+    if (a.token.split('.')[0] !== a.accountId || !/^u[0-9a-f]{15}$/.test(a.personalId) || 'u' + a.accountId.slice(1) !== a.personalId) return null;
+    return { token: a.token, accountId: a.accountId, personalId: a.personalId, name: cleanNick(a.name) || '我' };
   }
   // 成員名單（後端 pull 帶回來）：只留要顯示的欄位
   function cleanMembers(list) {
@@ -661,7 +668,7 @@
     groupWishes: groupWishes, wishesForCity: wishesForCity, toggleDone: toggleDone,
     moveStop: moveStop, removeStop: removeStop, updateStop: updateStop, addStop: addStop, sortByTime: sortByTime, extraToStop: extraToStop,
     normalizeCheck: normalizeCheck, seedChecks: seedChecks, checksForTrip: checksForTrip,
-    parseInvite: parseInvite, inviteUrl: inviteUrl, cleanNick: cleanNick, cleanGroups: cleanGroups, cleanGroupName: cleanGroupName, shareTrip: shareTrip,
+    parseInvite: parseInvite, inviteUrl: inviteUrl, cleanNick: cleanNick, cleanGroups: cleanGroups, cleanAuth: cleanAuth, cleanGroupName: cleanGroupName, shareTrip: shareTrip,
     mergeRows: mergeRows, listKind: listKind, itemVer: itemVer,
     cleanTrip: cleanTrip, cleanTrips: cleanTrips, buildBackup: buildBackup, parseBackup: parseBackup, mergeById: mergeById,
     makeId: makeId, upsertTrip: upsertTrip, removeTrip: removeTrip
