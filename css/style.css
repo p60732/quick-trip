@@ -180,6 +180,17 @@ details.more.slim > summary { font-size: 14px; color: var(--muted); font-weight:
   font-size: 13px; font-weight: 600; text-decoration: none; color: var(--accent);
   border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--glass-2);
 }
+/* 拖曳換順序 */
+.stop.draggable { grid-template-columns: 40px 1fr 36px; gap: 12px 16px; }
+.drag-h {
+  appearance: none; border: 0; background: transparent; color: var(--faint); font: inherit; font-size: 18px; letter-spacing: -3px;
+  width: 36px; height: 40px; border-radius: 10px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.drag-h:hover, .drag-h:focus-visible { color: var(--ink); background: var(--glass-2); }
+.drag-on .stop { transition: transform .15s ease; }
+.drag-on .stop::before { opacity: 0; }
+.stop.dragging { transition: none; z-index: 2; background: var(--glass); border-radius: 16px; box-shadow: 0 12px 30px rgba(0, 0, 0, .45); }
+.stop.dragging .drag-h { cursor: grabbing; color: var(--accent); }
 .c-transport { --c: var(--t-transport); } .c-sight { --c: var(--t-sight); } .c-food { --c: var(--t-food); }
 .c-snack { --c: var(--t-snack); } .c-lodging { --c: var(--t-lodging); } .c-shop { --c: var(--t-shop); } .c-rest { --c: var(--t-rest); }
 
@@ -295,7 +306,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; margin-top: 3
   #view-result { display: block !important; }
   .card { background: #fff; box-shadow: none; border-color: #ccc; break-inside: avoid; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .stop .when, .stop .sub, .meta, .near-sub { color: #444; }
-  .links, .near-add { display: none; }
+  .links, .near-add, .drag-h { display: none; }
   .day-panel.hidden { display: block !important; }
   .daytabs { display: none; }
 }
