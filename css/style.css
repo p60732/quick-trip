@@ -263,6 +263,16 @@ ul.plain li + li { margin-top: 4px; }
 .type { display: inline-block; font-size: 12px; font-weight: 700; color: var(--c); margin-right: 6px; }
 .kind-eat { --c: var(--t-food); } .kind-play { --c: var(--t-sight); }
 
+/* 成員名單 */
+.members { display: flex; flex-direction: column; gap: 8px; }
+.member { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass-2); }
+.member .grow { flex: 1; min-width: 0; }
+.member .name { font-weight: 700; }
+.member.gone .name { color: var(--muted); }
+.member .mini-btns { margin-top: 0; flex: none; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; margin-left: 6px; vertical-align: 1px; }
+.badge.me { color: var(--ok); border-color: var(--ok); }
+
 /* 我的行程 */
 .trip-item { display: flex; align-items: center; gap: 10px; }
 .trip-item .grow { flex: 1; min-width: 0; }
