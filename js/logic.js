@@ -314,6 +314,23 @@
     return u;
   }
 
+  // Google 地圖的地點連結（在 Google 地圖按「分享」複製出來的）
+  var GMAP_RE_ = /^https:\/\/(maps\.app\.goo\.gl\/|goo\.gl\/maps\/|(www\.)?google\.com(\.tw)?\/maps[\/?]|maps\.google\.com(\.tw)?\/)[^\s<>"']*$/i;
+  function isGmapUrl(u) { return GMAP_RE_.test(String(u || '')); }
+  // 貼上 Google 地圖分享的內容（可能是「店名＋換行＋連結」或只有連結）→ {name, mapUrl}
+  function parseMapShare(text) {
+    var t = String(text || '');
+    var m = /https:\/\/[^\s<>"']+/i.exec(t);
+    if (!m || !isGmapUrl(m[0])) return null;
+    var url = m[0].replace(/[)\]。，,]+$/, '');
+    var name = clean_(t.slice(0, m.index).replace(/[\r\n]+/g, ' ')).replace(/[：:\-－|｜]+$/, '').trim();
+    if (!name) {   // 完整網址裡的 /maps/place/店名/
+      var pm = /\/maps\/place\/([^\/?#]+)/.exec(url);
+      if (pm) { try { name = clean_(decodeURIComponent(pm[1].replace(/\+/g, ' '))); } catch (e) { name = ''; } }
+    }
+    return { name: name.slice(0, 100), mapUrl: url.slice(0, 500) };
+  }
+
   /* ---------- 願望清單 ---------- */
   // input: {name, scope, kind, city, note, url}；回傳 {ok, wish} 或 {ok:false, error}
   function normalizeWish(input, id, addedYmd) {
@@ -329,11 +346,13 @@
     if (scope === 'domestic' && !isTwCity(city)) return { ok: false, error: '請選縣市' };
     if (scope === 'abroad' && !city) return { ok: false, error: '請填國家或城市' };
     if (url && !/^https?:\/\/[^\s]+$/i.test(url)) return { ok: false, error: '連結要是 http 或 https 開頭' };
+    var mapUrl = clean_(w.mapUrl).slice(0, 500);
+    if (mapUrl && !isGmapUrl(mapUrl)) return { ok: false, error: 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上' };
     return {
       ok: true,
       wish: {
         id: String(id || ''), name: name, scope: scope, kind: kind, city: city,
-        note: clean_(w.note).slice(0, 200), url: url, done: w.done === true,
+        note: clean_(w.note).slice(0, 200), url: url, mapUrl: mapUrl, done: w.done === true,
         added: /^\d{4}-\d{2}-\d{2}$/.test(String(addedYmd || w.added || '')) ? String(addedYmd || w.added) : '',
         addedBy: clean_(w.addedBy).slice(0, 20)   // 群組裡由後端填，旅伴只能改刪自己加的
       }
@@ -663,7 +682,7 @@
     nextSaturday: nextSaturday, addDays: addDays, dayLabel: dayLabel,
     validateForm: validateForm, buildPrompt: buildPrompt, parsePlan: parsePlan,
     budgetTotal: budgetTotal, prevPlace: prevPlace,
-    mapSearchUrl: mapSearchUrl, mapDirUrl: mapDirUrl,
+    mapSearchUrl: mapSearchUrl, mapDirUrl: mapDirUrl, isGmapUrl: isGmapUrl, parseMapShare: parseMapShare,
     normalizeWish: normalizeWish, cleanWishes: cleanWishes, filterWishes: filterWishes,
     groupWishes: groupWishes, wishesForCity: wishesForCity, toggleDone: toggleDone,
     moveStop: moveStop, removeStop: removeStop, updateStop: updateStop, addStop: addStop, sortByTime: sortByTime, extraToStop: extraToStop,

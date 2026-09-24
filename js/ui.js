@@ -510,13 +510,30 @@
     $('w-city-wrap').classList.toggle('hidden', abroad);
     $('w-abroad-wrap').classList.toggle('hidden', !abroad);
   }
+  // Google 地圖連結欄：空白回傳 ''；看不懂回傳 null
+  function mapFromBox() {
+    var v = $('w-map').value.trim();
+    if (!v) return '';
+    var r = L.parseMapShare(v);
+    return r ? r.mapUrl : null;
+  }
+  // 貼上 Google 地圖分享的內容：連結放進地圖欄，店名自動帶入（店名欄貼也可以）
+  function onMapPaste(fromName) {
+    var box = fromName ? $('w-name') : $('w-map'), r = L.parseMapShare(box.value);
+    if (!r) return;
+    $('w-map').value = r.mapUrl;
+    if (fromName) $('w-name').value = r.name;
+    else if (r.name && !$('w-name').value.trim()) $('w-name').value = r.name;
+    msg('msg-wish', r.name || $('w-name').value.trim() ? '已帶入 Google 地圖的地點，選好縣市就能加入。' : '已放入地圖連結，請填上店名。', 'ok');
+  }
   function onWishAdd() {
     var scope = segValue('w-scope');
     var input = {
       name: $('w-name').value, scope: scope, kind: segValue('w-kind'),
       city: scope === 'abroad' ? $('w-abroad').value : $('w-city').value,
-      note: $('w-note').value, url: $('w-url').value
+      note: $('w-note').value, url: $('w-url').value, mapUrl: mapFromBox()
     };
+    if (input.mapUrl === null) { msg('msg-wish', 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; }
     var r = L.normalizeWish(input, newId('w'), todayYmd());
     if (!r.ok) { msg('msg-wish', r.error, 'err'); return; }
     if (wishes().length >= L.WISH_MAX) { msg('msg-wish', '願望清單滿了（' + L.WISH_MAX + ' 筆），先刪掉一些去過的吧', 'err'); return; }
@@ -524,7 +541,7 @@
     msg('msg-wish', state.space ? '儲存中…' : '');
     putItem(state.space, 'wish', r.wish.id, r.wish).then(function () {
       msg('msg-wish', '已加入：' + r.wish.name + (state.space ? '（旅伴也看得到）' : ''), 'ok');
-      $('w-name').value = ''; $('w-note').value = ''; $('w-url').value = '';
+      $('w-name').value = ''; $('w-note').value = ''; $('w-url').value = ''; $('w-map').value = '';
       setSeg('wf-scope', r.wish.scope);   // 篩選切到剛加的那一類，才看得到
       updateCount(); renderWishes();
     }, function (e) { msg('msg-wish', e.message, 'err'); }).then(function () { btn.disabled = false; });
@@ -554,10 +571,11 @@
     var meta = [w.note, w.added ? w.added.slice(5).replace('-', '/') + ' 記' : '', w.addedBy ? who(state.space, w.addedBy) + ' 加的' : by ? by + ' 最後更新' : ''].filter(Boolean).join(' · ');
     if (meta) row.appendChild(el('div', 'meta', meta));
     var act = el('div', 'actions');
-    act.appendChild(link('地圖', L.mapSearchUrl(w.name + ' ' + w.city)));
+    act.appendChild(link(w.mapUrl ? '📍 地圖' : '地圖', w.mapUrl || L.mapSearchUrl(w.name + ' ' + w.city)));
     if (w.url) act.appendChild(link('連結', w.url));
     if (w.scope === 'domestic' && !w.done && !guest()) act.appendChild(button('排進行程', 'go', function () { planFromWish(w); }));
     if (!canEditWish(w)) { row.appendChild(act); return row; }   // 別人加的點：旅伴只能看
+    if (!w.mapUrl) act.appendChild(button('綁地圖', '', function () { bindMapRow(row, w); }));
     act.appendChild(button(w.done ? '取消去過' : '去過了', '', function () {
       var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.done = !w.done;
       putItem(state.space, 'wish', w.id, c).then(function () { updateCount(); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
@@ -568,6 +586,21 @@
     }));
     row.appendChild(act);
     return row;
+  }
+  // 舊的願望補綁 Google 地圖連結
+  function bindMapRow(row, w) {
+    if (row.querySelector('.bind-map')) return;
+    var box = el('div', 'bind-map');
+    var inp = el('input'); inp.type = 'text'; inp.placeholder = '貼上 Google 地圖的分享連結'; inp.setAttribute('aria-label', 'Google 地圖連結');
+    box.appendChild(inp);
+    box.appendChild(button('存', 'btn small', function () {
+      var r = L.parseMapShare(inp.value);
+      if (!r) { msg('msg-wish', 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; }
+      var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.mapUrl = r.mapUrl;
+      putItem(state.space, 'wish', w.id, c).then(function () { msg('msg-wish', '「' + w.name + '」已綁上 Google 地圖。', 'ok'); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
+    }));
+    row.appendChild(box);
+    try { inp.focus(); } catch (e) {}
   }
   function planFromWish(w) {
     if ($('f-city').value !== w.city) { $('f-city').value = w.city; state.picked = {}; }
@@ -1097,6 +1130,12 @@
     // 沒登入：登入框放在最上面（按「先不登入」才收起來）；登入後改到「旅伴」頁管理帳號
     $('login-card').classList.toggle('hidden', !!a || !!state.skipLogin || state.view === 'result');
     $('acct-card').classList.toggle('hidden', !a);
+    var chip = $('acct-chip');
+    chip.textContent = a ? a.name : '登入';
+    chip.className = 'acct-chip ' + (a ? 'in' : 'out');
+    chip.setAttribute('aria-label', a ? '帳號：' + a.name + '（開啟選單）' : '登入');
+    $('acct-menu-name').textContent = a ? '已登入：' + a.name : '';
+    if (!a) closeAcctMenu();
     if (a) $('acct-who').textContent = a.name;
     var legacy = !a && groups().some(function (g) { return g.legacy; });
     $('acct-legacy').classList.toggle('hidden', !legacy);
@@ -1187,6 +1226,26 @@
     store(KEY_GROUPS, null); store(KEY_AUTH, null);
     state.space = ''; store(KEY_SPACE, ''); state.lastSync = 0; state.gdFor = null;
     renderSpaceBar(); statusIdle(); refreshViews(); renderAccount();
+  }
+  // 右上角：沒登入 → 帶到登入框；登入 → 開關選單
+  function closeAcctMenu() {
+    $('acct-menu').classList.add('hidden'); $('acct-chip').setAttribute('aria-expanded', 'false');
+    var b = $('btn-logout'); b.removeAttribute('data-armed'); b.textContent = '登出';
+  }
+  function onAcctChip() {
+    if (!auth()) {
+      state.skipLogin = false; if (state.view === 'result') show('plan'); renderAccount();
+      window.scrollTo(0, 0); try { $('acct-name').focus(); } catch (e) {}
+      return;
+    }
+    var open = $('acct-menu').classList.contains('hidden');
+    if (!open) { closeAcctMenu(); return; }
+    $('acct-menu').classList.remove('hidden'); $('acct-chip').setAttribute('aria-expanded', 'true');
+  }
+  function onLogoutClick() {
+    var b = $('btn-logout');
+    if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = '確定登出？（再按一次）'; return; }
+    closeAcctMenu(); onLogout();
   }
   function onLogout() {
     logoutLocal(); renderGroups();
@@ -1470,6 +1529,8 @@
     $('btn-copy').addEventListener('click', function () { onCopy(false); });
     $('btn-parse').addEventListener('click', onParse);
     $('btn-wish-add').addEventListener('click', onWishAdd);
+    $('w-map').addEventListener('input', function () { onMapPaste(false); });
+    $('w-name').addEventListener('input', function () { if (/https:\/\//.test($('w-name').value)) onMapPaste(true); });
     $('btn-export').addEventListener('click', onExport);
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', onImportFile);
@@ -1491,7 +1552,11 @@
     $('btn-login').addEventListener('click', function () { onAuth('login'); });
     $('btn-signup').addEventListener('click', function () { onAuth('signup'); });
     $('acct-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') onAuth('login'); });
-    $('btn-logout').addEventListener('click', onLogout);
+    $('btn-logout').addEventListener('click', onLogoutClick);
+    $('acct-chip').addEventListener('click', onAcctChip);
+    $('btn-acct-settings').addEventListener('click', function () { closeAcctMenu(); show('group'); $('acct-card').scrollIntoView({ block: 'start' }); });
+    document.addEventListener('click', function (e) { if (!$('acct-top').contains(e.target)) closeAcctMenu(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAcctMenu(); });
     $('btn-setpass').addEventListener('click', onSetPass);
     $('btn-join-login').addEventListener('click', function () { state.skipLogin = false; renderAccount(); window.scrollTo(0, 0); $('acct-name').focus(); });
     $('btn-skip-login').addEventListener('click', function () { state.skipLogin = true; renderAccount(); });
