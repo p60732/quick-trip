@@ -6,9 +6,17 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=b9ef4b75">
+<link rel="stylesheet" href="css/style.css?v=aa1b3f9e">
 </head>
 <body>
+<div class="acct-top" id="acct-top">
+  <button type="button" class="acct-chip" id="acct-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu">登入</button>
+  <div class="acct-menu hidden" id="acct-menu" role="menu">
+    <div class="acct-menu-name" id="acct-menu-name"></div>
+    <button type="button" role="menuitem" id="btn-acct-settings">帳號設定（改密碼）</button>
+    <button type="button" role="menuitem" class="danger" id="btn-logout">登出</button>
+  </div>
+</div>
 <div class="wrap">
   <header class="hero" id="hero">
     <span class="eyebrow-pill"><i class="live"></i>說走就走 · 三分鐘排好你的行程</span>
@@ -183,6 +191,9 @@
   <section id="view-wish" class="hidden">
     <div class="card">
       <h2 class="step-h">看到想去的，先記下來</h2>
+      <label class="f"><span>Google 地圖連結 <small>（選填：在 Google 地圖按「分享」→「複製連結」貼上，店名會自動帶入）</small></span>
+        <input type="text" id="w-map" maxlength="600" placeholder="https://maps.app.goo.gl/…" autocomplete="off" inputmode="url">
+      </label>
       <label class="f"><span>地方或店名</span>
         <input type="text" id="w-name" maxlength="100" placeholder="例：港園牛肉麵" autocomplete="off">
       </label>
@@ -284,7 +295,7 @@
     <div class="card hidden" id="acct-card">
       <h2 class="step-h">帳號</h2>
       <div id="acct-in">
-        <p class="hint">已登入：<b id="acct-who"></b>。資料都存在你的帳號，換手機用同一組名字和密碼登入就好。</p>
+        <p class="hint">已登入：<b id="acct-who"></b>。資料都存在你的帳號，換手機用同一組名字和密碼登入就好。要登出按右上角的名字。</p>
         <details class="more">
           <summary>改密碼</summary>
           <div class="row stack">
@@ -293,7 +304,6 @@
           </div>
           <div class="btns"><button type="button" class="btn small" id="btn-setpass">更新密碼</button></div>
         </details>
-        <div class="btns"><button type="button" class="btn small ghost" id="btn-logout">登出</button></div>
       </div>
       <div class="msg" id="msg-acct" role="status"></div>
     </div>
@@ -362,7 +372,7 @@
 </div>
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
-<script src="js/logic.js?v=adcacbf3"></script>
-<script src="js/ui.js?v=f7e6399a"></script>
+<script src="js/logic.js?v=1d24e941"></script>
+<script src="js/ui.js?v=0aaf2827"></script>
 </body>
 </html>
