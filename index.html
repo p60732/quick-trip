@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#d9531e">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=e695bf34">
+<link rel="stylesheet" href="css/style.css?v=f18b0d03">
 </head>
 <body>
 <div class="wrap">
@@ -18,8 +18,15 @@
   <nav class="tabs" role="tablist">
     <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
     <button type="button" role="tab" id="tab-wish" aria-selected="false">願望清單 <span id="wish-count"></span></button>
-    <button type="button" role="tab" id="tab-saved" aria-selected="false">我的行程 <span id="saved-count"></span></button>
+    <button type="button" role="tab" id="tab-saved" aria-selected="false">行程 <span id="saved-count"></span></button>
+    <button type="button" role="tab" id="tab-group" aria-selected="false">旅伴</button>
   </nav>
+
+  <button type="button" class="space-bar" id="space-bar" aria-label="切換共用群組">
+    <span class="space-name" id="space-name"></span>
+    <span class="space-status" id="space-status"></span>
+    <span class="space-switch">切換</span>
+  </button>
 
   <!-- 規劃 -->
   <section id="view-plan">
@@ -178,6 +185,7 @@
     </div>
 
     <div class="card">
+      <p class="hint" id="wish-space-hint"></p>
       <div class="filters">
         <div class="seg" id="wf-scope">
           <button type="button" data-v="domestic" aria-pressed="true">國內</button>
@@ -196,19 +204,23 @@
 
   <!-- 行程結果 -->
   <section id="view-result" class="hidden">
-    <div class="btns no-print mb">
+    <div class="btns no-print" id="result-bar">
       <button type="button" class="btn small ghost" id="btn-back">← 回去修改</button>
-      <button type="button" class="btn small" id="btn-save">存到我的行程</button>
+      <select id="save-space" aria-label="存到哪裡"></select>
+      <button type="button" class="btn small" id="btn-save">存起來</button>
+      <button type="button" class="btn small ghost" id="btn-edit">編輯行程</button>
       <button type="button" class="btn small ghost" id="btn-print">列印／存 PDF</button>
     </div>
+    <div class="msg no-print mb" id="msg-result" role="status"></div>
     <div id="result"></div>
   </section>
 
   <!-- 我的行程 -->
   <section id="view-saved" class="hidden">
     <div class="card warn hidden" id="storage-warn"></div>
+    <p class="hint" id="saved-space-hint"></p>
     <div id="saved-list"></div>
-    <div class="card">
+    <div class="card" id="backup-card">
       <h2 class="step-h">備份</h2>
       <p class="hint">行程和願望清單只存在「這個瀏覽器」。換手機、清除瀏覽紀錄，或改用別的 App 打開之前，先匯出備份檔，之後再匯入就能找回來。</p>
       <div class="btns">
@@ -220,9 +232,82 @@
     </div>
   </section>
 
-  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。資料（含家裡地址）只存在這支手機的瀏覽器裡。</footer>
+  <!-- 旅伴 -->
+  <section id="view-group" class="hidden">
+    <div class="card warn hidden" id="group-off">旅伴功能的後端還沒設定好，現在只能用「我自己」。</div>
+
+    <div class="card hidden" id="join-card">
+      <h2 class="step-h">加入旅伴群組</h2>
+      <p class="hint" id="join-hint">有人邀請你加入一起規劃行程。</p>
+      <label class="f"><span>你的暱稱 <small>（旅伴會看到誰改了什麼）</small></span>
+        <input type="text" id="join-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off">
+      </label>
+      <div class="btns">
+        <button type="button" class="btn" id="btn-join">加入</button>
+        <button type="button" class="btn ghost" id="btn-join-cancel">先不要</button>
+      </div>
+      <div class="msg" id="msg-join" role="status"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="step-h">現在用哪一份</h2>
+      <p class="hint">「我自己」只存在這支手機；選群組就是跟旅伴共用，大家改的會同步過來。</p>
+      <div id="space-list" class="space-list"></div>
+    </div>
+
+    <div class="card hidden" id="group-detail">
+      <h2 class="step-h" id="gd-name"></h2>
+      <div class="meta" id="gd-meta"></div>
+      <label class="f mt"><span>邀請連結 <small>（傳給旅伴，點開就能加入）</small></span>
+        <input type="text" id="gd-link" readonly aria-label="邀請連結">
+      </label>
+      <div class="btns">
+        <button type="button" class="btn small" id="btn-gd-copy">複製連結</button>
+        <button type="button" class="btn small ghost hidden" id="btn-gd-share">分享…</button>
+        <button type="button" class="btn small ghost" id="btn-gd-import">把「我自己」的願望複製進來</button>
+      </div>
+      <div class="hidden" id="gd-owner">
+        <h3 class="sub-h">管理（只有建立者看得到）</h3>
+        <label class="f"><span>群組名稱</span><input type="text" id="gd-rename" maxlength="40" autocomplete="off"></label>
+        <div class="btns">
+          <button type="button" class="btn small ghost" id="btn-gd-rename">改名</button>
+          <button type="button" class="btn small ghost" id="btn-gd-reset">重設邀請連結</button>
+        </div>
+        <p class="hint2">連結被轉傳出去時按「重設」：舊連結馬上失效、資料都保留，再把新連結傳給要留下的人。</p>
+      </div>
+      <label class="f mt"><span>我在這個群組的暱稱</span><input type="text" id="gd-nick" maxlength="20" autocomplete="off"></label>
+      <div class="btns">
+        <button type="button" class="btn small ghost" id="btn-gd-nick">更新暱稱</button>
+        <button type="button" class="btn small ghost" id="btn-gd-leave">離開群組</button>
+      </div>
+      <div class="msg" id="msg-gd" role="status"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="step-h">建立新群組</h2>
+      <div class="row stack">
+        <label class="f"><span>群組名稱</span><input type="text" id="ng-name" maxlength="40" placeholder="例：家人、10月墾丁團" autocomplete="off"></label>
+        <label class="f"><span>你的暱稱</span><input type="text" id="ng-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off"></label>
+      </div>
+      <div class="btns"><button type="button" class="btn" id="btn-ng">建立</button></div>
+      <div class="msg" id="msg-ng" role="status"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="step-h">用邀請連結加入</h2>
+      <label class="f"><span>貼上旅伴傳來的連結</span>
+        <input type="text" id="jl-link" placeholder="https://p60732.github.io/quick-trip/#join=…" autocomplete="off">
+      </label>
+      <div class="btns"><button type="button" class="btn small" id="btn-jl">下一步</button></div>
+      <div class="msg" id="msg-jl" role="status"></div>
+    </div>
+  </section>
+
+  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。「我自己」的資料（含家裡地址）只存在這支手機；群組的資料存在建立者的 Google 試算表，分享行程時不會帶家裡地址。</footer>
 </div>
-<script src="js/logic.js?v=231cb69c"></script>
-<script src="js/ui.js?v=137a7649"></script>
+<script src="js/config.js?v=da7d879b"></script>
+<script src="js/sync.js?v=3a1071fb"></script>
+<script src="js/logic.js?v=389eb371"></script>
+<script src="js/ui.js?v=4b46c605"></script>
 </body>
 </html>
