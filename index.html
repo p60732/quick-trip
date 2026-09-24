@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#d9531e">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=ff0080e3">
+<link rel="stylesheet" href="css/style.css?v=e695bf34">
 </head>
 <body>
 <div class="wrap">
@@ -17,6 +17,7 @@
 
   <nav class="tabs" role="tablist">
     <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
+    <button type="button" role="tab" id="tab-wish" aria-selected="false">願望清單 <span id="wish-count"></span></button>
     <button type="button" role="tab" id="tab-saved" aria-selected="false">我的行程 <span id="saved-count"></span></button>
   </nav>
 
@@ -25,9 +26,24 @@
     <div class="card">
       <h2 class="step-h"><span class="step-n">1</span>想去哪、怎麼去</h2>
 
-      <label class="f"><span>主要目的地 <small>（一定要去的那個點）</small></span>
-        <input type="text" id="f-destination" maxlength="100" placeholder="例：高雄 鈴鹿賽道樂園" autocomplete="off">
+      <div class="f"><span class="lbl">範圍</span>
+        <div class="seg" id="f-scope">
+          <button type="button" data-v="domestic" aria-pressed="true">國內</button>
+          <button type="button" data-v="abroad" aria-pressed="false" disabled>國外（即將推出）</button>
+        </div>
+      </div>
+
+      <label class="f"><span>縣市</span>
+        <select id="f-city"></select>
       </label>
+
+      <label class="f"><span>主要想去的點 <small>（選填，空白就讓 Claude 在這個縣市挑）</small></span>
+        <input type="text" id="f-destination" maxlength="100" placeholder="例：鈴鹿賽道樂園" autocomplete="off">
+      </label>
+
+      <div class="f hidden" id="wish-picks-box"><span class="lbl" id="wish-picks-title">願望清單</span>
+        <div class="chips" id="wish-picks"></div>
+      </div>
 
       <label class="f"><span>還想順便去／吃 <small>（選填）</small></span>
         <input type="text" id="f-mustDo" maxlength="200" placeholder="例：想吃鹽埕區的老店、想看海" autocomplete="off">
@@ -43,25 +59,21 @@
         </div>
       </div>
 
-      <label class="f"><span>出發地</span>
-        <input type="text" id="f-origin" maxlength="100" autocomplete="off">
-        <div class="chips" id="origin-chips">
-          <button type="button" class="chip" data-v="高鐵新竹站">高鐵新竹站</button>
-          <button type="button" class="chip" data-v="台鐵新竹站">台鐵新竹站</button>
-          <button type="button" class="chip" data-v="新竹市區（開車）">新竹開車</button>
+      <div class="f"><span class="lbl">出發地</span>
+        <div class="seg" id="f-otype">
+          <button type="button" data-v="home" aria-pressed="false">自家</button>
+          <button type="button" data-v="station" aria-pressed="true">車站</button>
+          <button type="button" data-v="hotel" aria-pressed="false">飯店</button>
+          <button type="button" data-v="other" aria-pressed="false">其他</button>
         </div>
-      </label>
+        <input type="text" id="f-otext" class="mt8" maxlength="150" autocomplete="off" aria-label="出發地">
+        <datalist id="station-list"></datalist>
+        <div class="hint2" id="otext-hint"></div>
+      </div>
 
-      <label class="f"><span>交通方式</span>
-        <select id="f-transport">
-          <option>高鐵＋當地大眾運輸</option>
-          <option>高鐵＋當地計程車／叫車</option>
-          <option>高鐵＋當地租車</option>
-          <option>台鐵＋當地大眾運輸</option>
-          <option>自行開車</option>
-          <option>客運</option>
-        </select>
-      </label>
+      <div class="f"><span class="lbl">交通方式 <small>（可複選，會混合搭配）</small></span>
+        <div class="chips" id="f-transport"></div>
+      </div>
 
       <div class="row">
         <label class="f"><span>最早出發</span><input type="time" id="f-leaveAt"></label>
@@ -132,6 +144,56 @@
     </div>
   </section>
 
+  <!-- 願望清單 -->
+  <section id="view-wish" class="hidden">
+    <div class="card">
+      <h2 class="step-h">看到想去的，先記下來</h2>
+      <label class="f"><span>地方或店名</span>
+        <input type="text" id="w-name" maxlength="100" placeholder="例：港園牛肉麵" autocomplete="off">
+      </label>
+      <div class="row">
+        <div class="f"><span class="lbl">範圍</span>
+          <div class="seg" id="w-scope">
+            <button type="button" data-v="domestic" aria-pressed="true">國內</button>
+            <button type="button" data-v="abroad" aria-pressed="false">國外</button>
+          </div>
+        </div>
+        <div class="f"><span class="lbl">種類</span>
+          <div class="seg" id="w-kind">
+            <button type="button" data-v="eat" aria-pressed="true">吃的</button>
+            <button type="button" data-v="play" aria-pressed="false">玩的</button>
+          </div>
+        </div>
+      </div>
+      <label class="f" id="w-city-wrap"><span>縣市</span><select id="w-city"></select></label>
+      <label class="f hidden" id="w-abroad-wrap"><span>國家／城市</span>
+        <input type="text" id="w-abroad" maxlength="60" placeholder="例：日本 京都" autocomplete="off">
+      </label>
+      <div class="row stack">
+        <label class="f"><span>備註 <small>（選填）</small></span><input type="text" id="w-note" maxlength="200" placeholder="例：朋友推薦、要排隊" autocomplete="off"></label>
+        <label class="f"><span>連結 <small>（選填，IG／文章）</small></span><input type="url" id="w-url" maxlength="500" placeholder="https://" autocomplete="off"></label>
+      </div>
+      <div class="btns"><button type="button" class="btn" id="btn-wish-add">加入願望清單</button></div>
+      <div class="msg" id="msg-wish" role="status"></div>
+    </div>
+
+    <div class="card">
+      <div class="filters">
+        <div class="seg" id="wf-scope">
+          <button type="button" data-v="domestic" aria-pressed="true">國內</button>
+          <button type="button" data-v="abroad" aria-pressed="false">國外</button>
+        </div>
+        <div class="seg" id="wf-kind">
+          <button type="button" data-v="all" aria-pressed="true">全部</button>
+          <button type="button" data-v="eat" aria-pressed="false">吃的</button>
+          <button type="button" data-v="play" aria-pressed="false">玩的</button>
+        </div>
+        <label class="inline-check"><input type="checkbox" id="wf-done"> 顯示去過的</label>
+      </div>
+      <div id="wish-list"></div>
+    </div>
+  </section>
+
   <!-- 行程結果 -->
   <section id="view-result" class="hidden">
     <div class="btns no-print mb">
@@ -144,12 +206,23 @@
 
   <!-- 我的行程 -->
   <section id="view-saved" class="hidden">
+    <div class="card warn hidden" id="storage-warn"></div>
     <div id="saved-list"></div>
+    <div class="card">
+      <h2 class="step-h">備份</h2>
+      <p class="hint">行程和願望清單只存在「這個瀏覽器」。換手機、清除瀏覽紀錄，或改用別的 App 打開之前，先匯出備份檔，之後再匯入就能找回來。</p>
+      <div class="btns">
+        <button type="button" class="btn small" id="btn-export">匯出備份檔</button>
+        <button type="button" class="btn small ghost" id="btn-import">匯入備份檔</button>
+        <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+      </div>
+      <div class="msg" id="msg-backup" role="status"></div>
+    </div>
   </section>
 
-  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。資料只存在這支手機的瀏覽器裡。</footer>
+  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。資料（含家裡地址）只存在這支手機的瀏覽器裡。</footer>
 </div>
-<script src="js/logic.js?v=b68b97cc"></script>
-<script src="js/ui.js?v=fabe4e82"></script>
+<script src="js/logic.js?v=231cb69c"></script>
+<script src="js/ui.js?v=137a7649"></script>
 </body>
 </html>
