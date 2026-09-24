@@ -1133,7 +1133,7 @@
     var chip = $('acct-chip');
     chip.textContent = a ? a.name : '登入';
     chip.className = 'acct-chip ' + (a ? 'in' : 'out');
-    chip.setAttribute('aria-label', a ? '帳號：' + a.name + '（開啟選單）' : '登入');
+    chip.setAttribute('aria-label', a ? '帳號：' + a.name + '（開啟選單：帳號設定、登出）' : '登入');
     $('acct-menu-name').textContent = a ? '已登入：' + a.name : '';
     if (!a) closeAcctMenu();
     if (a) $('acct-who').textContent = a.name;
