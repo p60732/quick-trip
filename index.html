@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=0d8bf23f">
+<link rel="stylesheet" href="css/style.css?v=b9ef4b75">
 </head>
 <body>
 <div class="wrap">
@@ -28,6 +28,23 @@
     <span class="space-status" id="space-status"></span>
     <span class="space-switch">切換</span>
   </button>
+
+  <div class="card glass" id="login-card">
+    <h2 class="step-h">登入</h2>
+    <p class="hint">登入後，行程、願望清單和群組都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
+    <p class="hint2 warn-text hidden" id="acct-legacy">這支手機上有之前加入的群組，登入後會自動搬到你的帳號。</p>
+    <div class="row stack">
+      <label class="f"><span>名字 <small>（不能跟別人重複）</small></span><input type="text" id="acct-name" maxlength="20" autocomplete="username" placeholder="例：佩芝"></label>
+      <label class="f"><span>密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-pass" maxlength="64" autocomplete="current-password"></label>
+    </div>
+    <div class="btns">
+      <button type="button" class="btn" id="btn-login">登入</button>
+      <button type="button" class="btn ghost" id="btn-signup">第一次用：建立帳號</button>
+    </div>
+    <div class="btns"><button type="button" class="btn ghost small" id="btn-skip-login">先不登入，只存在這支手機</button></div>
+    <div class="msg" id="msg-login" role="status"></div>
+  </div>
+  <div class="msg" id="msg-top" role="status"></div>
 
   <!-- 規劃 -->
   <section id="view-plan">
@@ -251,7 +268,7 @@
       <h2 class="step-h">加入旅伴群組</h2>
       <p class="hint" id="join-hint">有人邀請你加入一起規劃行程。</p>
       <div id="join-login" class="hidden">
-        <p class="hint2">在下面「帳號」登入或建立帳號，好了就會自動加入。</p>
+        <p class="hint2">在最上面登入或建立帳號，好了就會自動加入。</p>
         <div class="btns"><button type="button" class="btn small" id="btn-join-login">去登入</button></div>
       </div>
       <div id="join-form" class="hidden">
@@ -264,21 +281,9 @@
       <div class="msg" id="msg-join" role="status"></div>
     </div>
 
-    <div class="card" id="acct-card">
+    <div class="card hidden" id="acct-card">
       <h2 class="step-h">帳號</h2>
-      <div id="acct-out">
-        <p class="hint">登入後，行程、願望清單和群組都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
-        <p class="hint2 warn-text hidden" id="acct-legacy">這支手機上有之前加入的群組，登入後會自動搬到你的帳號。</p>
-        <div class="row stack">
-          <label class="f"><span>名字 <small>（不能跟別人重複）</small></span><input type="text" id="acct-name" maxlength="20" autocomplete="username" placeholder="例：佩芝"></label>
-          <label class="f"><span>密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-pass" maxlength="64" autocomplete="current-password"></label>
-        </div>
-        <div class="btns">
-          <button type="button" class="btn" id="btn-login">登入</button>
-          <button type="button" class="btn ghost" id="btn-signup">第一次用：建立帳號</button>
-        </div>
-      </div>
-      <div id="acct-in" class="hidden">
+      <div id="acct-in">
         <p class="hint">已登入：<b id="acct-who"></b>。資料都存在你的帳號，換手機用同一組名字和密碼登入就好。</p>
         <details class="more">
           <summary>改密碼</summary>
@@ -332,7 +337,7 @@
 
     <div class="card" id="ng-card">
       <h2 class="step-h">建立新群組</h2>
-      <p class="hint2" id="ng-login">先在上面登入，才能建立群組。</p>
+      <p class="hint2" id="ng-login">先在最上面登入，才能建立群組。</p>
       <div id="ng-form" class="hidden">
         <div class="row stack">
           <label class="f"><span>群組名稱</span><input type="text" id="ng-name" maxlength="40" placeholder="例：家人、10月墾丁團" autocomplete="off"></label>
@@ -358,6 +363,6 @@
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
 <script src="js/logic.js?v=adcacbf3"></script>
-<script src="js/ui.js?v=eea28982"></script>
+<script src="js/ui.js?v=f7e6399a"></script>
 </body>
 </html>
