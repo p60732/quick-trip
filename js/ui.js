@@ -1081,28 +1081,59 @@
   function onJoin() {
     var j = state.pendingJoin, nick = L.cleanNick($('join-nick').value);
     if (!j) return;
-    if (!nick) { msg('msg-join', '請填暱稱', 'err'); return; }
+    if (!nick) { msg('msg-join', '請填暱稱', 'err'); $('join-nick').focus(); return; }
     var b = $('btn-join'); b.disabled = true; msg('msg-join', '加入中…');
-    S.call('joinGroup', { groupId: j.groupId, key: j.key }).then(function (d) {
+    doJoin(j, nick).then(null, function (e) { msg('msg-join', e.message, 'err'); }).then(function () { b.disabled = false; });
+  }
+  // 驗證邀請碼 → 記住群組 → 切過去。回傳 Promise
+  function doJoin(j, nick) {
+    return S.call('joinGroup', { groupId: j.groupId, key: j.key }).then(function (d) {
       var old = group(j.groupId);
       upsertGroup({
         groupId: j.groupId, name: d.name, key: old && old.ownerKey ? old.ownerKey : j.key,
-        inviteKey: j.key, ownerKey: old ? old.ownerKey : '', nick: nick
+        inviteKey: j.key, ownerKey: old ? old.ownerKey : '', nick: old ? old.nick : nick
       });
-      store(KEY_NICK, nick);
+      store(KEY_NICK, old ? old.nick : nick);
       state.pendingJoin = null;
       msg('msg-join', '');
-      switchSpace(j.groupId); renderGroups();
-      msg('msg-gd', '已加入「' + d.name + '」！願望清單和行程分頁現在都是大家共用的。', 'ok');
-    }, function (e) { msg('msg-join', e.message, 'err'); }).then(function () { b.disabled = false; });
+      switchSpace(j.groupId); show('group');
+      msg('msg-gd', old ? '你已經在「' + d.name + '」了，已切換過來。'
+        : '已加入「' + d.name + '」！暱稱是「' + nick + '」（下面可以改）。' + (guest() ? '到「行程」分頁看大家的行程。' : ''), 'ok');
+    });
+  }
+  // 點邀請連結：手機記得暱稱就直接加入；第一次用才請他填暱稱（先顯示是哪個群組邀請）
+  function handleInvite(inv) {
+    var nick = group(inv.groupId) ? group(inv.groupId).nick : L.cleanNick(store(KEY_NICK));
+    if (nick) {
+      state.pendingJoin = null;
+      show('group');
+      msg('msg-gd', '加入中…');
+      doJoin(inv, nick).then(null, function (e) {
+        state.pendingJoin = inv; renderGroups();   // 連結失效等：留在加入畫面顯示原因
+        $('join-hint').textContent = '';
+        msg('msg-join', e.message, 'err'); msg('msg-gd', '');
+      });
+      return;
+    }
+    state.pendingJoin = inv;
+    show('group');
+    $('join-hint').textContent = '正在確認邀請…';
+    S.call('joinGroup', { groupId: inv.groupId, key: inv.key }).then(function (d) {
+      if (state.pendingJoin !== inv) return;
+      $('join-hint').textContent = '「' + d.name + '」邀請你一起規劃行程。填個暱稱，旅伴就知道是誰加的。';
+    }, function (e) {
+      if (state.pendingJoin !== inv) return;
+      $('join-hint').textContent = '';
+      msg('msg-join', e.message, 'err');
+    });
+    try { $('join-nick').focus(); } catch (e) {}
   }
   function onJoinLink() {
     var j = L.parseInvite($('jl-link').value);
     if (!j) { msg('msg-jl', '這不像邀請連結，請整段貼上（要有 #join= 那段）', 'err'); return; }
     msg('msg-jl', '');
-    state.pendingJoin = j; $('jl-link').value = '';
-    renderGroups();
-    $('join-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('jl-link').value = '';
+    handleInvite(j);
   }
   function onCopyInvite() {
     copyText($('gd-link').value, $('gd-link')).then(function (ok) {
@@ -1242,13 +1273,12 @@
     updateCount();
     if (guest()) show('saved'); else applyGuest();
 
-    // 邀請連結：#join=群組.邀請碼 → 先從網址列拿掉（免得被截圖或轉傳），再請使用者填暱稱
+    // 邀請連結：#join=群組.邀請碼 → 先從網址列拿掉（免得被截圖或轉傳），再加入
     function takeInvite() {
       var inv = L.parseInvite(location.hash);
       if (!inv) return;
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-      state.pendingJoin = inv;
-      show('group');
+      handleInvite(inv);
     }
     takeInvite();
     window.addEventListener('hashchange', takeInvite);   // 頁面開著時又點了一條邀請連結
