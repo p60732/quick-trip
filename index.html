@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=97c9d6f3">
+<link rel="stylesheet" href="css/style.css?v=4d53279c">
 </head>
 <body>
 <div class="wrap">
@@ -284,9 +284,12 @@
           <button type="button" class="btn small ghost" id="btn-gd-rename">改名</button>
           <button type="button" class="btn small ghost" id="btn-gd-reset">重設邀請連結</button>
         </div>
-        <p class="hint2">連結被轉傳出去時按「重設」：舊連結馬上失效、資料都保留，再把新連結傳給要留下的人。</p>
+        <p class="hint2">連結被轉傳出去時按「重設」：舊連結不能再用來加入，已經加入的人不受影響。</p>
       </div>
-      <label class="f mt"><span>我在這個群組的暱稱</span><input type="text" id="gd-nick" maxlength="20" autocomplete="off"></label>
+      <h3 class="sub-h">成員</h3>
+      <div class="members" id="gd-members"></div>
+      <p class="hint2 hidden" id="gd-members-hint">旅伴換手機或清掉瀏覽器資料時，按他旁邊的「釋放」，請他用同一個暱稱重新點邀請連結，就能拿回原本加的點。</p>
+      <label class="f mt"><span>我在這個群組的暱稱 <small>（改了之後，你加過的點會一起顯示新名字）</small></span><input type="text" id="gd-nick" maxlength="20" autocomplete="off"></label>
       <div class="btns">
         <button type="button" class="btn small ghost" id="btn-gd-nick">更新暱稱</button>
         <button type="button" class="btn small ghost" id="btn-gd-leave">離開群組</button>
@@ -317,8 +320,8 @@
   <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。「我自己」的資料（含家裡地址）只存在這支手機；群組的資料存在建立者的 Google 試算表，分享行程時不會帶家裡地址。</footer>
 </div>
 <script src="js/config.js?v=da7d879b"></script>
-<script src="js/sync.js?v=0b33c4e6"></script>
-<script src="js/logic.js?v=bfa7d5b9"></script>
-<script src="js/ui.js?v=865c3713"></script>
+<script src="js/sync.js?v=46d9c00a"></script>
+<script src="js/logic.js?v=9555ad9d"></script>
+<script src="js/ui.js?v=c7269e24"></script>
 </body>
 </html>
