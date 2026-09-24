@@ -45,7 +45,7 @@ nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--a
 label.f { display: block; margin-bottom: 14px; }
 label.f > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
 label.f > span small { font-weight: 400; color: var(--muted); }
-input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
+input[type=text], input[type=url], input[type=number], input[type=date], input[type=time], select, textarea {
   width: 100%; font: inherit; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px;
 }
@@ -145,3 +145,33 @@ div.f { margin-bottom: 14px; }
 .mt { margin-top: 12px; }
 .mb { margin-bottom: 14px; }
 @media print { .day-panel.hidden { display: block !important; } .daytabs { display: none; } }
+
+/* v2：願望清單、出發地、交通複選 */
+nav.tabs { overflow-x: auto; }
+nav.tabs button { white-space: nowrap; }
+.mt8 { margin-top: 8px; }
+.hint2 { color: var(--muted); font-size: 13px; margin-top: 6px; min-height: 1em; }
+.seg button:disabled { color: var(--muted); cursor: not-allowed; font-size: 14px; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.filters .seg { flex: 1 1 160px; }
+.inline-check { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.inline-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.wgroup + .wgroup { margin-top: 16px; }
+.wgroup h3 { font-size: 15px; margin: 0 0 6px; color: var(--muted); }
+.wish { border-top: 1px solid var(--line); padding: 10px 0; }
+.wish:first-of-type { border-top: 0; }
+.wish .name { font-weight: 700; }
+.wish.done .name { text-decoration: line-through; color: var(--muted); }
+.wish .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.wish .actions button {
+  appearance: none; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 10px;
+}
+.wish .actions button.go { border-color: var(--accent); color: var(--accent); }
+.wish .actions a {
+  font-size: 13px; font-weight: 600; text-decoration: none; color: var(--accent);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+}
+.kind-eat { --c: var(--t-food); } .kind-play { --c: var(--t-sight); }
+#f-days button { font-size: 14px; white-space: nowrap; padding: 10px 2px; }
+.card.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: transparent; font-size: 14px; }
