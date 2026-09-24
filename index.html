@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=4d53279c">
+<link rel="stylesheet" href="css/style.css?v=0d8bf23f">
 </head>
 <body>
 <div class="wrap">
@@ -233,7 +233,7 @@
     <div id="saved-list"></div>
     <div class="card" id="backup-card">
       <h2 class="step-h">備份</h2>
-      <p class="hint">行程和願望清單只存在「這個瀏覽器」。換手機、清除瀏覽紀錄，或改用別的 App 打開之前，先匯出備份檔，之後再匯入就能找回來。</p>
+      <p class="hint" id="backup-hint">沒登入時，行程和願望清單只存在「這個瀏覽器」。到「旅伴」頁登入，就會存到你的帳號，換手機也找得回來；也可以匯出備份檔自己留著。</p>
       <div class="btns">
         <button type="button" class="btn small" id="btn-export">匯出備份檔</button>
         <button type="button" class="btn small ghost" id="btn-import">匯入備份檔</button>
@@ -250,19 +250,52 @@
     <div class="card hidden" id="join-card">
       <h2 class="step-h">加入旅伴群組</h2>
       <p class="hint" id="join-hint">有人邀請你加入一起規劃行程。</p>
-      <label class="f"><span>你的暱稱 <small>（旅伴會看到誰改了什麼）</small></span>
-        <input type="text" id="join-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off">
-      </label>
-      <div class="btns">
-        <button type="button" class="btn" id="btn-join">加入</button>
-        <button type="button" class="btn ghost" id="btn-join-cancel">先不要</button>
+      <div id="join-login" class="hidden">
+        <p class="hint2">在下面「帳號」登入或建立帳號，好了就會自動加入。</p>
+        <div class="btns"><button type="button" class="btn small" id="btn-join-login">去登入</button></div>
       </div>
+      <div id="join-form" class="hidden">
+        <label class="f"><span>你在這個群組的暱稱 <small>（旅伴會看到誰改了什麼）</small></span>
+          <input type="text" id="join-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off">
+        </label>
+        <div class="btns"><button type="button" class="btn" id="btn-join">加入</button></div>
+      </div>
+      <div class="btns"><button type="button" class="btn ghost small" id="btn-join-cancel">先不要</button></div>
       <div class="msg" id="msg-join" role="status"></div>
+    </div>
+
+    <div class="card" id="acct-card">
+      <h2 class="step-h">帳號</h2>
+      <div id="acct-out">
+        <p class="hint">登入後，行程、願望清單和群組都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
+        <p class="hint2 warn-text hidden" id="acct-legacy">這支手機上有之前加入的群組，登入後會自動搬到你的帳號。</p>
+        <div class="row stack">
+          <label class="f"><span>名字 <small>（不能跟別人重複）</small></span><input type="text" id="acct-name" maxlength="20" autocomplete="username" placeholder="例：佩芝"></label>
+          <label class="f"><span>密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-pass" maxlength="64" autocomplete="current-password"></label>
+        </div>
+        <div class="btns">
+          <button type="button" class="btn" id="btn-login">登入</button>
+          <button type="button" class="btn ghost" id="btn-signup">第一次用：建立帳號</button>
+        </div>
+      </div>
+      <div id="acct-in" class="hidden">
+        <p class="hint">已登入：<b id="acct-who"></b>。資料都存在你的帳號，換手機用同一組名字和密碼登入就好。</p>
+        <details class="more">
+          <summary>改密碼</summary>
+          <div class="row stack">
+            <label class="f"><span>目前的密碼</span><input type="password" id="acct-old" maxlength="64" autocomplete="current-password"></label>
+            <label class="f"><span>新密碼</span><input type="password" id="acct-new" maxlength="64" autocomplete="new-password"></label>
+          </div>
+          <div class="btns"><button type="button" class="btn small" id="btn-setpass">更新密碼</button></div>
+        </details>
+        <div class="btns"><button type="button" class="btn small ghost" id="btn-logout">登出</button></div>
+      </div>
+      <div class="msg" id="msg-acct" role="status"></div>
     </div>
 
     <div class="card">
       <h2 class="step-h">現在用哪一份</h2>
-      <p class="hint">「我自己」只存在這支手機；選群組就是跟旅伴共用，大家改的會同步過來。</p>
+      <p class="hint">「我自己」是只有你看得到的清單和行程；選群組就是跟旅伴共用，大家改的會同步過來。</p>
       <div id="space-list" class="space-list"></div>
     </div>
 
@@ -288,7 +321,7 @@
       </div>
       <h3 class="sub-h">成員</h3>
       <div class="members" id="gd-members"></div>
-      <p class="hint2 hidden" id="gd-members-hint">旅伴換手機或清掉瀏覽器資料時，按他旁邊的「釋放」，請他用同一個暱稱重新點邀請連結，就能拿回原本加的點。</p>
+      <p class="hint2 hidden" id="gd-members-hint">旅伴換手機只要登入就好。如果他忘了密碼，按他旁邊的「釋放」，請他建立新帳號、用同一個暱稱重新點邀請連結，就能拿回原本加的點。</p>
       <label class="f mt"><span>我在這個群組的暱稱 <small>（改了之後，你加過的點會一起顯示新名字）</small></span><input type="text" id="gd-nick" maxlength="20" autocomplete="off"></label>
       <div class="btns">
         <button type="button" class="btn small ghost" id="btn-gd-nick">更新暱稱</button>
@@ -299,11 +332,14 @@
 
     <div class="card" id="ng-card">
       <h2 class="step-h">建立新群組</h2>
-      <div class="row stack">
-        <label class="f"><span>群組名稱</span><input type="text" id="ng-name" maxlength="40" placeholder="例：家人、10月墾丁團" autocomplete="off"></label>
-        <label class="f"><span>你的暱稱</span><input type="text" id="ng-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off"></label>
+      <p class="hint2" id="ng-login">先在上面登入，才能建立群組。</p>
+      <div id="ng-form" class="hidden">
+        <div class="row stack">
+          <label class="f"><span>群組名稱</span><input type="text" id="ng-name" maxlength="40" placeholder="例：家人、10月墾丁團" autocomplete="off"></label>
+          <label class="f"><span>你在群組裡的暱稱</span><input type="text" id="ng-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off"></label>
+        </div>
+        <div class="btns"><button type="button" class="btn" id="btn-ng">建立</button></div>
       </div>
-      <div class="btns"><button type="button" class="btn" id="btn-ng">建立</button></div>
       <div class="msg" id="msg-ng" role="status"></div>
     </div>
 
@@ -317,11 +353,11 @@
     </div>
   </section>
 
-  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。「我自己」的資料（含家裡地址）只存在這支手機；群組的資料存在建立者的 Google 試算表，分享行程時不會帶家裡地址。</footer>
+  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。登入後，你的清單、行程和群組存在網站管理者的 Google 試算表（密碼只存加密後的雜湊）；家裡地址只存在這支手機，分享行程時也不會帶出去。</footer>
 </div>
 <script src="js/config.js?v=da7d879b"></script>
-<script src="js/sync.js?v=46d9c00a"></script>
-<script src="js/logic.js?v=9555ad9d"></script>
-<script src="js/ui.js?v=c7269e24"></script>
+<script src="js/sync.js?v=ac706b73"></script>
+<script src="js/logic.js?v=adcacbf3"></script>
+<script src="js/ui.js?v=eea28982"></script>
 </body>
 </html>
