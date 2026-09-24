@@ -277,18 +277,31 @@ ul.plain li + li { margin-top: 4px; }
 .warn-text { color: var(--warn-ink); }
 #acct-who { color: var(--accent); }
 #msg-top { margin: 0 4px 12px; }
-/* 右上角帳號：固定在畫面右上，捲動也看得到 */
-.acct-top { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: calc(env(safe-area-inset-right, 0px) + 12px); z-index: 50; }
-.acct-chip {
-  appearance: none; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer;
-  max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 38px; padding: 6px 14px;
-  background: rgba(20, 28, 48, .82); border: 1px solid var(--line-2); border-radius: 999px;
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+/* 頂部列：品牌在左、帳號在右；捲動時貼在最上面 */
+.appbar {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 50; margin: 12px 0 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 14px;
+  background: rgba(28, 42, 72, .92); border: 1px solid var(--line-2); border-radius: 22px;
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
 }
-.acct-chip.in::before { content: "👤 "; }
-.acct-chip.out { color: var(--accent-ink); background: var(--accent); border-color: transparent; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.logo {
+  flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+  background: rgba(124, 200, 242, .16); color: var(--accent); font-weight: 900; font-size: 20px;
+}
+.brand-txt { min-width: 0; line-height: 1.25; }
+.brand-txt b { display: block; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-txt small { display: block; font-size: 12px; color: var(--muted); letter-spacing: .12em; white-space: nowrap; }
+.acct-wrap { position: relative; flex: none; }
+.acct-chip {
+  appearance: none; font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); cursor: pointer;
+  max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 44px; padding: 8px 16px;
+  background: var(--glass-3); border: 1px solid var(--line-2); border-radius: 14px;
+}
+.acct-chip.in::after { content: " ▾"; color: var(--muted); font-size: 12px; }
+.acct-chip[aria-expanded="true"] { background: rgba(124, 200, 242, .2); border-color: var(--accent); }
 .acct-menu {
-  position: absolute; right: 0; top: calc(100% + 8px); min-width: 200px; padding: 6px;
+  position: absolute; right: 0; top: calc(100% + 10px); min-width: 210px; padding: 6px;
   background: #182036; border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
 }
 .acct-menu-name { padding: 8px 12px 6px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
@@ -298,8 +311,7 @@ ul.plain li + li { margin-top: 4px; }
 }
 .acct-menu button:hover, .acct-menu button:focus-visible { background: var(--glass-3); }
 .acct-menu button.danger { color: var(--err); }
-.wrap { padding-top: calc(env(safe-area-inset-top, 0px) + 56px); }
-.hero { padding-top: 4px; }
+@media (max-width: 360px) { .brand-txt small { display: none; } .logo { width: 38px; height: 38px; } }
 /* 願望補綁地圖 */
 .bind-map { display: flex; gap: 8px; margin-top: 10px; }
 .bind-map input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; }
