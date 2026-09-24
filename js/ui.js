@@ -228,7 +228,8 @@
   function expired() {
     if (!auth()) return;
     logoutLocal();
-    msg('msg-acct', '登入已過期或在別的地方改過密碼，請重新登入。', 'err');
+    state.skipLogin = false; renderAccount();
+    msg('msg-login', '登入已過期或在別的地方改過密碼，請重新登入。', 'err');
   }
   // 別人改了資料：重畫目前看到的畫面（正在編輯行程時不動，免得打字打到一半被洗掉）
   function refreshViews() {
@@ -280,7 +281,8 @@
     state.view = view;
     applyGuest();
     ['plan', 'wish', 'result', 'saved', 'group'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== view); });
-    $('hero').classList.toggle('hidden', view !== 'plan');   // 大標只在規劃頁，其他頁直接看內容
+    $('hero').classList.toggle('hidden', view !== 'plan');
+    renderAccount();   // 大標只在規劃頁，其他頁直接看內容
     var tab = view === 'result' ? 'plan' : view;
     ['plan', 'wish', 'saved', 'group'].forEach(function (t) { $('tab-' + t).setAttribute('aria-selected', String(t === tab)); });
     if (view === 'saved') { renderSaved(); checkStorage(); }
@@ -295,6 +297,7 @@
     $('space-name').textContent = g ? '👥 ' + g.name + ' · 你是 ' + g.nick : '📱 我自己' + (a ? ' · ' + a.name : '');
     $('space-bar').classList.toggle('hidden', !groups().length && !S.configured());
     applyGuest();
+    renderAccount();
   }
 
   /* ================= 共用切換 ================= */
@@ -1091,30 +1094,31 @@
   /* ================= 帳號 ================= */
   function renderAccount() {
     var a = auth();
-    $('acct-out').classList.toggle('hidden', !!a);
-    $('acct-in').classList.toggle('hidden', !a);
+    // 沒登入：登入框放在最上面（按「先不登入」才收起來）；登入後改到「旅伴」頁管理帳號
+    $('login-card').classList.toggle('hidden', !!a || !!state.skipLogin || state.view === 'result');
+    $('acct-card').classList.toggle('hidden', !a);
     if (a) $('acct-who').textContent = a.name;
     var legacy = !a && groups().some(function (g) { return g.legacy; });
     $('acct-legacy').classList.toggle('hidden', !legacy);
   }
   function readCred() {
     var name = L.cleanNick($('acct-name').value), pass = $('acct-pass').value;
-    if (!name) { msg('msg-acct', '請填名字', 'err'); $('acct-name').focus(); return null; }
-    if (pass.length < 4) { msg('msg-acct', '密碼至少 4 個字', 'err'); $('acct-pass').focus(); return null; }
+    if (!name) { msg('msg-login', '請填名字', 'err'); $('acct-name').focus(); return null; }
+    if (pass.length < 4) { msg('msg-login', '密碼至少 4 個字', 'err'); $('acct-pass').focus(); return null; }
     return { name: name, pass: pass };
   }
   function onAuth(action) {
     var c = readCred(); if (!c) return;
     var bs = [$('btn-login'), $('btn-signup')];
     bs.forEach(function (b) { b.disabled = true; });
-    msg('msg-acct', action === 'signup' ? '建立中…' : '登入中…');
+    msg('msg-login', action === 'signup' ? '建立中…' : '登入中…');
     S.call(action, c).then(function (d) {
       store(KEY_AUTH, { token: d.token, accountId: d.accountId, personalId: d.personalId, name: d.name });
       store(KEY_NICK, d.name);
       $('acct-pass').value = '';
-      msg('msg-acct', (action === 'signup' ? '帳號建立好了' : '歡迎回來') + '，' + d.name + '！', 'ok');
+      msg('msg-login', ''); msg('msg-top', (action === 'signup' ? '帳號建立好了' : '歡迎回來') + '，' + d.name + '！', 'ok');
       return afterLogin(action === 'signup');
-    }).then(null, function (e) { msg('msg-acct', e.message, 'err'); }).then(function () {
+    }).then(null, function (e) { msg('msg-login', e.message, 'err'); }).then(function () {
       bs.forEach(function (b) { b.disabled = false; });
     });
   }
@@ -1125,7 +1129,7 @@
       return refreshMe();
     }).then(function () {
       state.lastSync = 0; switchSpace(state.space); renderGroups();
-      if (notes.length) msg('msg-acct', notes.join(' '), notes.some(function (n) { return /沒有搬/.test(n); }) ? 'err' : 'ok');
+      if (notes.length) msg('msg-top', $('msg-top').textContent + ' ' + notes.join(' '), notes.some(function (n) { return /沒有搬/.test(n); }) ? 'err' : 'ok');
       var j = state.pendingJoin;
       if (!j) return;
       // 剛建好的帳號：讓他確認在群組裡的暱稱（被釋放的旅伴要填回原本的暱稱才拿得回自己的點）
@@ -1186,7 +1190,8 @@
   }
   function onLogout() {
     logoutLocal(); renderGroups();
-    msg('msg-acct', '已登出，這支手機上的雲端資料都清掉了。', 'ok');
+    msg('msg-top', '已登出，這支手機上的雲端資料都清掉了。', 'ok');
+    window.scrollTo(0, 0);
   }
   function onSetPass() {
     var oldp = $('acct-old').value, newp = $('acct-new').value;
@@ -1326,6 +1331,7 @@
         if (state.pendingJoin !== inv) return;
         $('join-hint').textContent = ''; msg('msg-join', e.message, 'err');
       });
+      state.skipLogin = false; renderAccount();
       try { $('acct-name').focus(); } catch (e) {}
       return;
     }
@@ -1487,7 +1493,8 @@
     $('acct-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') onAuth('login'); });
     $('btn-logout').addEventListener('click', onLogout);
     $('btn-setpass').addEventListener('click', onSetPass);
-    $('btn-join-login').addEventListener('click', function () { $('acct-name').focus(); });
+    $('btn-join-login').addEventListener('click', function () { state.skipLogin = false; renderAccount(); window.scrollTo(0, 0); $('acct-name').focus(); });
+    $('btn-skip-login').addEventListener('click', function () { state.skipLogin = true; renderAccount(); });
     $('btn-ng').addEventListener('click', onCreateGroup);
     $('btn-join').addEventListener('click', onJoin);
     $('btn-join-cancel').addEventListener('click', function () { state.pendingJoin = null; renderGroups(); });
