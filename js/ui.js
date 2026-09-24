@@ -221,6 +221,7 @@
   function show(view) {
     state.view = view;
     ['plan', 'wish', 'result', 'saved', 'group'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== view); });
+    $('hero').classList.toggle('hidden', view !== 'plan');   // 大標只在規劃頁，其他頁直接看內容
     var tab = view === 'result' ? 'plan' : view;
     ['plan', 'wish', 'saved', 'group'].forEach(function (t) { $('tab-' + t).setAttribute('aria-selected', String(t === tab)); });
     if (view === 'saved') { renderSaved(); checkStorage(); }
@@ -259,7 +260,7 @@
   /* ================= 出發地 ================= */
   var OTYPE_UI = {
     home: { ph: '家裡地址，例：新竹市東區○○路○號', hint: '地址只存在這支手機，下次選「自家」會自動帶入；分享給旅伴時不會帶出去。' },
-    station: { ph: '例：高鐵新竹站', hint: '可以直接打字，或從建議清單選車站。' },
+    station: { ph: '例：高鐵新竹站', hint: '' },
     hotel: { ph: '飯店名稱，例：○○飯店 高雄', hint: '適合兩天一夜第二天、或人已經在外地時。' },
     other: { ph: '例：公司、朋友家、某個路口', hint: '' }
   };
@@ -314,6 +315,7 @@
       $('f-otext').value = o.text;
       setOtype(o.type, true);
     }
+    renderQuick();
   }
   function defaults() {
     fillForm({
@@ -323,18 +325,65 @@
     });
   }
 
+  /* ================= 精簡表單：交通二選一、膠囊 ================= */
+  // 主畫面只放「公共交通／自駕」；細項（混合搭配）在「更多選項」，兩邊同步
+  var MODE_PRESET = { transit: ['高鐵', '捷運／公車'], driving: ['自行開車'] };
+  var BUDGETS = [0, 1500, 3000, 6000];
+  var PACE_SHORT = { '悠閒，景點少一點、多留休息時間': '輕鬆', '剛好，景點與休息平衡': '剛好', '塞滿，能去的都去': '塞滿' };
+  function renderQuick() {
+    var t = pressedTexts('f-transport');
+    var mode = t.length ? L.travelMode(t) : '';
+    setSeg('f-mode', mode);
+    var preset = mode && MODE_PRESET[mode].join() === t.join();
+    $('mode-note').textContent = !t.length ? '請選一種交通方式' : preset ? '' : L.transportText(t) + '（細項在「更多選項」）';
+    $('pill-days').textContent = segValue('f-days') === '2' ? '兩天一夜' : '一日來回';
+    $('pill-pace').textContent = '節奏 ' + (PACE_SHORT[segValue('f-pace')] || '剛好');
+    var bud = Number($('f-budget').value) || 0;
+    $('pill-budget').textContent = '預算 ' + (bud ? money(bud) : '不限');
+  }
+  function cycleSeg(id) {
+    var bs = $(id).querySelectorAll('button'), i = 0;
+    each(bs, function (b, k) { if (b.getAttribute('aria-pressed') === 'true') i = k; });
+    setSeg(id, bs[(i + 1) % bs.length].getAttribute('data-v'));
+    renderQuick();
+  }
+  function cycleBudget() {
+    var v = Number($('f-budget').value) || 0, next = 0;
+    for (var i = 1; i < BUDGETS.length; i++) if (BUDGETS[i] > v) { next = BUDGETS[i]; break; }
+    $('f-budget').value = next ? String(next) : '';
+    renderQuick();
+  }
+  // 沒選縣市時從「想去的點」猜（猜得到就帶入，願望清單才對得上）
+  function autoCity() {
+    if ($('f-city').value) return;
+    var c = L.guessCity($('f-destination').value);
+    if (c) { $('f-city').value = c; state.picked = {}; renderPicks(); }
+  }
+
   function onPrompt() {
+    autoCity();
     var f = readForm();
     var errs = L.validateForm(f);
-    if (errs.length) { msg('msg-form', errs.join('；'), 'err'); return; }
+    if (errs.length) {
+      msg('msg-form', errs.join('；'), 'err');
+      // 錯的欄位收在「更多選項」裡 → 自動打開，才看得到要改哪裡
+      if (/縣市|日期|人數|時間/.test(errs.join())) $('more-opts').open = true;
+      return;
+    }
     msg('msg-form', '');
     state.form = f;
     store(KEY_DRAFT, f);
     if (f.origin.type === 'home') store(KEY_HOME, L.normOrigin(f.origin).text);
-    $('prompt-out').value = L.buildPrompt(f);
-    $('card-copy').classList.remove('locked');
+    var text = L.buildPrompt(f);
+    $('prompt-out').value = text;
+    $('card-copy').classList.remove('locked', 'hidden');
     $('card-paste').classList.remove('locked');
     msg('msg-copy', '');
+    // 按「生成行程」就先把提示詞複製好（同一次點擊內才允許寫剪貼簿）
+    copyText(text, $('prompt-out')).then(function (ok) {
+      if (ok) msg('msg-copy', '提示詞已複製，按「開啟 Claude」貼上送出。', 'ok');
+      else { $('prompt-box').open = true; msg('msg-copy', '自動複製失敗，請在下面的提示詞長按全選後複製。', 'err'); }
+    });
     $('card-copy').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -345,6 +394,7 @@
     return Promise.resolve(legacyCopy(text, fallbackInput));
   }
   function legacyCopy(text, t) {
+    var d = t.closest('details'); if (d) d.open = true;   // 收合中的文字框選不到
     t.value = text; t.focus(); t.select(); t.setSelectionRange(0, text.length);
     try { return document.execCommand('copy'); } catch (e) { return false; }
   }
@@ -354,8 +404,8 @@
     // 先開視窗（要在使用者點擊的同一拍，否則會被擋）
     if (open) window.open('https://claude.ai/new', '_blank', 'noopener');
     copyText(text, $('prompt-out')).then(function (ok) {
-      if (ok) msg('msg-copy', open ? '已複製，到 Claude 貼上送出，再把回答貼到第 3 步。' : '已複製。', 'ok');
-      else msg('msg-copy', '自動複製失敗，請長按上面的文字框全選後複製。', 'err');
+      if (ok) msg('msg-copy', open ? '已複製，到 Claude 貼上送出，再把回答貼回下面。' : '已複製。', 'ok');
+      else { $('prompt-box').open = true; msg('msg-copy', '自動複製失敗，請在下面的提示詞長按全選後複製。', 'err'); }
     });
   }
 
@@ -521,8 +571,13 @@
     box.textContent = '';
     var mode = L.travelMode(f.transport);
 
-    var head = el('div', 'card plan-head');
-    head.appendChild(el('h2', '', plan.title));
+    var head = el('div', 'card glass plan-head');
+    head.appendChild(el('div', 'eyebrow', '你的行程'));
+    var hr = el('div', 'head-row');
+    hr.appendChild(el('h2', '', plan.title));
+    var dur = planDuration(plan);
+    if (dur) hr.appendChild(el('span', 'dur-pill', dur));
+    head.appendChild(hr);
     if (plan.summary) head.appendChild(el('p', 'sum', plan.summary));
     var metaBits = [];
     if (f.date) metaBits.push(L.dayLabel(f.date) + (f.days === 2 ? ' 起兩天一夜' : ' 一日來回'));
@@ -544,13 +599,12 @@
     }
 
     plan.days.forEach(function (d, di) {
-      var panel = el('div', 'card day-panel' + (di === state.day ? '' : ' hidden'));
+      var panel = el('div', 'card glass day-panel' + (di === state.day ? '' : ' hidden'));
       if (plan.days.length > 1) panel.appendChild(el('h3', '', d.label));
       var ul = el('ol', 'timeline');
       d.items.forEach(function (it, ii) {
         var li = el('li', 'stop c-' + it.type);
-        li.appendChild(el('div', 't', it.time || '—'));
-        li.appendChild(el('span', 'dot'));
+        li.appendChild(el('span', 'num', String(ii + 1)));
         var body = el('div', 'body');
         if (state.editing) body.appendChild(stopEditor(di, ii, it, plan));
         else stopView(body, it, d, di, ii, f, mode);
@@ -568,25 +622,31 @@
     });
 
     if (plan.nearbyExtras.length) {
-      var ex = el('div', 'card sec');
-      ex.appendChild(el('h3', '', '附近備選（臨時想換可以去）'));
+      var ex = el('div', 'card glass sec nearby');
+      var eh = el('div', 'sec-head');
+      eh.appendChild(el('h3', '', '附近可吃可玩'));
+      if (f.city) eh.appendChild(el('span', 'meta', f.city));
+      ex.appendChild(eh);
       plan.nearbyExtras.forEach(function (x, xi) {
-        var o = el('div', 'opt c-' + x.type);
-        var n = el('div', 'name');
-        n.appendChild(el('span', 'type', L.TYPE_LABEL[x.type]));
-        n.appendChild(document.createTextNode(x.name));
-        o.appendChild(n);
-        if (x.why) o.appendChild(el('div', 'sub meta', x.why));
-        var ls = el('div', 'links'); ls.appendChild(link('地圖', L.mapSearchUrl(x.mapQuery)));
-        o.appendChild(ls);
-        if (state.editing) {
+        var o = el('div', 'near c-' + x.type);
+        o.appendChild(el('span', 'near-ico', TYPE_ICON[x.type] || '📍'));
+        var mid = el('div', 'near-mid');
+        var nm = link(x.name, L.mapSearchUrl(x.mapQuery)); nm.className = 'near-name';
+        mid.appendChild(nm);
+        mid.appendChild(el('div', 'near-sub', [L.TYPE_LABEL[x.type], x.why].filter(Boolean).join(' · ')));
+        o.appendChild(mid);
+        // 一鍵加進目前這一天的最後；多天行程在編輯模式可以選加到哪一天
+        if (state.editing && plan.days.length > 1) {
           var mb = el('div', 'mini-btns');
           plan.days.forEach(function (d, di) {
-            mb.appendChild(button('加到' + (plan.days.length > 1 ? d.label : '行程') + '最後', '', function () {
-              editStop(function (p) { return L.extraToStop(p, xi, di, null); });
-            }));
+            mb.appendChild(button('加到' + d.label, '', function () { editStop(function (p) { return L.extraToStop(p, xi, di, null); }); }));
           });
-          o.appendChild(mb);
+          mid.appendChild(mb);
+        } else {
+          o.appendChild(button('加入', 'near-add', function () {
+            editStop(function (p) { return L.extraToStop(p, xi, state.day, null); });
+            msg('msg-result', '「' + x.name + '」已加到行程最後，可以按「編輯行程」調整時間。', 'ok');
+          }));
         }
         ex.appendChild(o);
       });
@@ -594,7 +654,7 @@
     }
 
     if (plan.lodging.length) {
-      var lg = el('div', 'card sec');
+      var lg = el('div', 'card glass sec');
       lg.appendChild(el('h3', '', '住宿建議'));
       plan.lodging.forEach(function (x) {
         var o = el('div', 'opt');
@@ -610,7 +670,7 @@
 
     var bt = L.budgetTotal(plan, f.people);
     if (bt.perPerson) {
-      var bc = el('div', 'card sec');
+      var bc = el('div', 'card glass sec');
       bc.appendChild(el('h3', '', '預算估算'));
       var tb = el('table', 'budget');
       plan.budget.forEach(function (b) {
@@ -638,7 +698,7 @@
     renderChecks(box);
 
     if (plan.tips.length) {
-      var tp = el('div', 'card sec');
+      var tp = el('div', 'card glass sec');
       tp.appendChild(el('h3', '', '小提醒'));
       var ul3 = el('ul', 'plain');
       plan.tips.forEach(function (t) { ul3.appendChild(el('li', '', t)); });
@@ -648,16 +708,14 @@
   }
 
   function stopView(body, it, d, di, ii, f, mode) {
-    var nm = el('div', 'name');
-    nm.appendChild(el('span', 'type', L.TYPE_LABEL[it.type]));
-    nm.appendChild(document.createTextNode(it.name));
-    body.appendChild(nm);
-    var sub = [];
-    if (it.duration) sub.push(it.duration);
-    if (it.cost) sub.push('每人約 ' + money(it.cost));
-    if (sub.length) body.appendChild(el('div', 'sub', sub.join(' · ')));
-    if (it.transport) body.appendChild(el('div', 'how', it.transport));
-    if (it.note) body.appendChild(el('div', 'note', it.note));
+    body.appendChild(el('div', 'when', [it.time, L.TYPE_LABEL[it.type]].filter(Boolean).join(' · ')));
+    body.appendChild(el('div', 'name', it.name));
+    var line = [it.transport, it.note].filter(Boolean).join(' · ');
+    if (line) body.appendChild(el('div', 'sub', line));
+    var small = [];
+    if (it.duration) small.push('停留 ' + it.duration);
+    if (it.cost) small.push('每人約 ' + money(it.cost));
+    if (small.length) body.appendChild(el('div', 'sub2', small.join(' · ')));
     if (it.verify) body.appendChild(el('span', 'verify', '出發前確認營業／預約'));
     if (it.mapQuery && it.type !== 'transport') {
       var links = el('div', 'links');
@@ -667,6 +725,19 @@
       links.appendChild(link(from ? '從上一站導航' : '導航', L.mapDirUrl(from, it.mapQuery, mode)));
       body.appendChild(links);
     }
+  }
+
+  var TYPE_ICON = { transport: '🚆', sight: '🏞️', food: '🍜', snack: '🍡', lodging: '🛏️', shop: '🛍️', rest: '☕' };
+  // 「約 6 小時」：第一天第一站到最後一站的時間差；兩天以上直接寫天數
+  function planDuration(plan) {
+    if (plan.days.length > 1) return plan.days.length === 2 ? '兩天一夜' : plan.days.length + ' 天';
+    var ts = plan.days[0].items.map(function (it) { return it.time; }).filter(function (t) { return /^\d{2}:\d{2}$/.test(t); });
+    if (ts.length < 2) return '';
+    function m(t) { return Number(t.slice(0, 2)) * 60 + Number(t.slice(3)); }
+    var mins = m(ts[ts.length - 1]) - m(ts[0]);
+    if (mins <= 0) return '';
+    var h = Math.round(mins / 30) / 2;
+    return '約 ' + h + ' 小時';
   }
 
   // 編輯模式：一站一組欄位。文字欄位改完（change）就存進 state，不重畫，免得游標跳掉
@@ -723,7 +794,7 @@
     var plan = state.plan;
     if (!state.tripId) {
       if (!plan.checkBefore.length) return;
-      var c0 = el('div', 'card sec');
+      var c0 = el('div', 'card glass sec');
       c0.appendChild(el('h3', '', '出發前確認'));
       var u0 = el('ul', 'plain');
       plan.checkBefore.forEach(function (t) { u0.appendChild(el('li', '', t)); });
@@ -734,7 +805,7 @@
     }
     var sp = state.tripSpace, tripId = state.tripId, me = myNick(sp);
     var list = checksIn(sp, tripId);
-    var cb = el('div', 'card sec');
+    var cb = el('div', 'card glass sec');
     cb.appendChild(el('h3', '', '出發前確認' + (sp ? '（大家都能勾、可以認領）' : '')));
     var ul = el('ul', 'check');
     list.forEach(function (c) {
@@ -1005,8 +1076,14 @@
     }
     state.space = group(store(KEY_SPACE)) ? store(KEY_SPACE) : '';
 
-    bindToggle('f-days'); bindToggle('f-pace'); bindToggle('f-food', true); bindToggle('f-transport', true);
-    bindToggle('f-scope');
+    bindToggle('f-days', false, renderQuick); bindToggle('f-pace', false, renderQuick);
+    bindToggle('f-food', true); bindToggle('f-transport', true, renderQuick);
+    bindToggle('f-mode', false, function (v) { setPressedTexts('f-transport', MODE_PRESET[v] || []); renderQuick(); });
+    $('pill-days').addEventListener('click', function () { cycleSeg('f-days'); });
+    $('pill-pace').addEventListener('click', function () { cycleSeg('f-pace'); });
+    $('pill-budget').addEventListener('click', cycleBudget);
+    $('f-budget').addEventListener('input', renderQuick);
+    $('f-destination').addEventListener('change', autoCity);
     bindToggle('f-otype', false, function (v) { setSeg('f-otype', state.otype); setOtype(v); });
     bindToggle('w-scope', false, syncWishScope); bindToggle('w-kind');
     bindToggle('wf-scope', false, renderWishes); bindToggle('wf-kind', false, renderWishes);

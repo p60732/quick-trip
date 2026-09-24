@@ -130,7 +130,9 @@
   /* ---------- 表單驗證 ---------- */
   function validateForm(f) {
     var errs = [];
-    if (!isTwCity(f.city)) errs.push('請選擇要去的縣市');
+    // 縣市可空（讓 Claude 從想去的點判斷），但有填就要在選單內；兩個都空就擋
+    if (clean_(f.city) && !isTwCity(f.city)) errs.push('縣市不在選單內');
+    else if (!isTwCity(f.city) && !clean_(f.destination)) errs.push('請填想去的點，或在「更多選項」選縣市');
     var o = normOrigin(f.origin);
     if (!o.text) errs.push(o.type === 'home' ? '請填家裡地址' : o.type === 'hotel' ? '請填飯店名稱' : '請填出發地');
     if (!normTransport(f.transport).length) errs.push('請至少選一種交通方式');
@@ -154,7 +156,7 @@
     lines.push('');
     lines.push('【基本資料】');
     lines.push('- 出發地：' + originText(f.origin));
-    lines.push('- 目的地縣市：' + clean_(f.city));
+    lines.push('- 目的地縣市：' + (isTwCity(f.city) ? clean_(f.city) : '（請依主要想去的點判斷）'));
     if (clean_(f.destination)) lines.push('- 主要想去（一定要去）：' + clean_(f.destination));
     if (picks.length) lines.push('- 願望清單裡想順便去／吃（盡量排進去，排不進去就放到附近備選）：' + picks.join('、'));
     if (clean_(f.mustDo)) lines.push('- 其他指定想去／想吃：' + clean_(f.mustDo));
