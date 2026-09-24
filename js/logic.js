@@ -82,7 +82,7 @@
   }
   function originText(o) {
     var n = normOrigin(o);
-    if (!n.text) return '';
+    if (!n.text) return n.type === 'home' && o && typeof o === 'object' ? '自家' : '';
     return n.type === 'other' ? n.text : ORIGIN_TYPES[n.type] + '（' + n.text + '）';
   }
   // 地圖用：只要地址或站名本身
@@ -431,6 +431,170 @@
     return out.slice(0, max || 30);
   }
 
+  /* ---------- 行程逐站編輯（都回傳新的 plan，不改原本的） ---------- */
+  var STOP_FIELDS = ['time', 'type', 'name', 'mapQuery', 'duration', 'transport', 'note', 'cost', 'verify'];
+  function editPlan_(plan, fn) {
+    var p = JSON.parse(JSON.stringify(plan));
+    if (fn(p) === false) return plan;
+    var r = parsePlan(JSON.stringify(p));
+    return r.ok ? r.plan : plan;
+  }
+  function hasStop_(p, d, i) { return p.days[d] && i >= 0 && i < p.days[d].items.length; }
+  function moveStop(plan, d, i, dir) {
+    return editPlan_(plan, function (p) {
+      var j = i + (dir < 0 ? -1 : 1);
+      if (!hasStop_(p, d, i) || !hasStop_(p, d, j)) return false;
+      var its = p.days[d].items, t = its[i]; its[i] = its[j]; its[j] = t;
+    });
+  }
+  function removeStop(plan, d, i) {
+    return editPlan_(plan, function (p) {
+      if (!hasStop_(p, d, i)) return false;
+      p.days[d].items.splice(i, 1);
+    });
+  }
+  function updateStop(plan, d, i, fields) {
+    return editPlan_(plan, function (p) {
+      if (!hasStop_(p, d, i)) return false;
+      var s = p.days[d].items[i];
+      Object.keys(fields || {}).forEach(function (k) {
+        if (STOP_FIELDS.indexOf(k) !== -1) s[k] = fields[k];
+      });
+      // 改了名稱但沒改地圖關鍵字 → 地圖跟著名稱走
+      if (fields && fields.name != null && fields.mapQuery == null) s.mapQuery = fields.name;
+    });
+  }
+  function addStop(plan, d, stop) {
+    return editPlan_(plan, function (p) {
+      if (!p.days[d] || p.days[d].items.length >= LIMIT.items) return false;
+      p.days[d].items.push(stop || { name: '新的一站', type: 'sight' });
+    });
+  }
+  function sortByTime(plan, d) {
+    return editPlan_(plan, function (p) {
+      if (!p.days[d]) return false;
+      // 沒填時間的維持原本相對位置，排在有時間的後面
+      var its = p.days[d].items.map(function (s, k) { return { s: s, k: k }; });
+      its.sort(function (a, b) {
+        var ta = a.s.time || '99:99', tb = b.s.time || '99:99';
+        return ta < tb ? -1 : ta > tb ? 1 : a.k - b.k;
+      });
+      p.days[d].items = its.map(function (x) { return x.s; });
+    });
+  }
+  // 把附近備選放進行程：replaceIndex 有給就取代那一站（被換掉的放回備選），沒給就加在當天最後
+  function extraToStop(plan, extraIndex, d, replaceIndex) {
+    return editPlan_(plan, function (p) {
+      var x = p.nearbyExtras[extraIndex];
+      if (!x || !p.days[d]) return false;
+      var stop = { name: x.name, mapQuery: x.mapQuery, type: x.type, note: x.why };
+      if (replaceIndex != null) {
+        if (!hasStop_(p, d, replaceIndex)) return false;
+        var old = p.days[d].items[replaceIndex];
+        stop.time = old.time; stop.duration = old.duration; stop.transport = old.transport;
+        p.days[d].items[replaceIndex] = stop;
+        p.nearbyExtras[extraIndex] = { name: old.name, mapQuery: old.mapQuery, type: old.type, why: '原本排在 ' + (old.time || '行程') + ' 的點' };
+      } else {
+        if (p.days[d].items.length >= LIMIT.items) return false;
+        p.days[d].items.push(stop);
+        p.nearbyExtras.splice(extraIndex, 1);
+      }
+    });
+  }
+
+  /* ---------- 出發前清單（可分工） ---------- */
+  function normalizeCheck(c, id) {
+    c = c && typeof c === 'object' ? c : {};
+    var cid = String(id || c.id || '');
+    var tripId = cid.split('.')[0];
+    var text = clean_(c.text).slice(0, 100);
+    if (!/^[\w-]{1,40}\.[\w-]{1,30}$/.test(cid) || !text) return null;
+    return {
+      id: cid, tripId: tripId, text: text, done: c.done === true,
+      who: clean_(c.who).slice(0, 20), order: typeof c.order === 'number' && isFinite(c.order) ? c.order : 999
+    };
+  }
+  function seedChecks(tripId, plan) {
+    return (plan && plan.checkBefore ? plan.checkBefore : []).map(function (t, i) {
+      return normalizeCheck({ text: t, order: i }, tripId + '.c' + i);
+    }).filter(Boolean);
+  }
+  function checksForTrip(list, tripId) {
+    return (Array.isArray(list) ? list : []).map(function (c) { return normalizeCheck(c, c && c.id); })
+      .filter(function (c) { return c && c.tripId === tripId; })
+      .sort(function (a, b) { return a.order - b.order || (a.id < b.id ? -1 : 1); });
+  }
+
+  /* ---------- 旅伴群組 ---------- */
+  // 邀請連結：...#join=<groupId>.<key>（放在 # 後面，不會送到任何伺服器的網址紀錄）
+  function parseInvite(s) {
+    var m = /#join=([A-Za-z0-9_-]{6,40})\.([A-Za-z0-9]{16,64})/.exec(String(s || ''));
+    return m ? { groupId: m[1], key: m[2] } : null;
+  }
+  function inviteUrl(base, groupId, key) {
+    return String(base || '').split('#')[0].split('?')[0] + '#join=' + groupId + '.' + key;
+  }
+  function cleanNick(s) { return clean_(s).slice(0, 20); }
+  var KEY_RE_ = /^[A-Za-z0-9]{16,64}$/, GID_RE_ = /^[A-Za-z0-9_-]{6,40}$/;
+  // 本機記住的群組清單：格式不對的丟掉；邀請碼、管理碼各自檢查
+  function cleanGroups(list) {
+    var seen = {};
+    return (Array.isArray(list) ? list : []).map(function (g) {
+      if (!g || typeof g !== 'object' || !GID_RE_.test(g.groupId) || !KEY_RE_.test(g.key) || seen[g.groupId]) return null;
+      seen[g.groupId] = true;
+      return {
+        groupId: g.groupId, name: cleanGroupName(g.name) || '未命名群組', key: g.key,
+        inviteKey: KEY_RE_.test(g.inviteKey) ? g.inviteKey : '', ownerKey: KEY_RE_.test(g.ownerKey) ? g.ownerKey : '',
+        nick: cleanNick(g.nick) || '我'
+      };
+    }).filter(Boolean).slice(0, 20);
+  }
+  function cleanGroupName(s) { return clean_(s).slice(0, 40); }
+  // 分享到群組的行程：拿掉家裡地址，只留「自家」
+  function shareTrip(trip) {
+    var t = cleanTrip(trip);
+    if (!t) return null;
+    if (t.form.origin.type === 'home') t.form.origin = { type: 'home', text: '' };
+    return t;
+  }
+  // 同步：把伺服器回來的列合併進本機快取；同一筆取版本較新的。回傳新快取，不改舊的
+  function mergeRows(cache, rows) {
+    var old = cache && cache.items ? cache.items : {};
+    var items = {}, since = cache && cache.since || 0, changed = false;
+    Object.keys(old).forEach(function (k) { items[k] = old[k]; });
+    (Array.isArray(rows) ? rows : []).forEach(function (r) {
+      if (!r || KIND_OK.indexOf(r.kind) === -1 || typeof r.itemId !== 'string') return;
+      var k = r.kind + ':' + r.itemId, cur = items[k];
+      if (!cur || r.ver > cur.ver || (r.ver === cur.ver && r.updatedAt > cur.updatedAt)) {
+        items[k] = {
+          kind: r.kind, itemId: r.itemId, json: r.deleted ? '' : String(r.json || ''), ver: Number(r.ver) || 0,
+          updatedAt: Number(r.updatedAt) || 0, updatedBy: cleanNick(r.updatedBy), deleted: r.deleted === true
+        };
+        changed = true;
+      }
+      if (Number(r.updatedAt) > since) since = Number(r.updatedAt);
+    });
+    return { since: since, items: items, changed: changed };
+  }
+  var KIND_OK = ['wish', 'trip', 'check'];
+  // 從快取取出某一類（沒刪掉、JSON 讀得懂的），附上版本與最後修改者
+  function listKind(cache, kind) {
+    var items = cache && cache.items ? cache.items : {}, out = [];
+    Object.keys(items).forEach(function (k) {
+      var r = items[k];
+      if (r.kind !== kind || r.deleted) return;
+      var o; try { o = JSON.parse(r.json); } catch (e) { return; }
+      if (!o || typeof o !== 'object') return;
+      o.id = r.itemId;
+      out.push({ obj: o, ver: r.ver, by: r.updatedBy, at: r.updatedAt });
+    });
+    return out.sort(function (a, b) { return b.at - a.at; });
+  }
+  function itemVer(cache, kind, id) {
+    var r = cache && cache.items ? cache.items[kind + ':' + id] : null;
+    return r ? r.ver : 0;
+  }
+
   /* ---------- 存檔清單 ---------- */
   function makeId(seed) {
     var h = 5381, s = String(seed);
@@ -459,6 +623,10 @@
     mapSearchUrl: mapSearchUrl, mapDirUrl: mapDirUrl,
     normalizeWish: normalizeWish, cleanWishes: cleanWishes, filterWishes: filterWishes,
     groupWishes: groupWishes, wishesForCity: wishesForCity, toggleDone: toggleDone,
+    moveStop: moveStop, removeStop: removeStop, updateStop: updateStop, addStop: addStop, sortByTime: sortByTime, extraToStop: extraToStop,
+    normalizeCheck: normalizeCheck, seedChecks: seedChecks, checksForTrip: checksForTrip,
+    parseInvite: parseInvite, inviteUrl: inviteUrl, cleanNick: cleanNick, cleanGroups: cleanGroups, cleanGroupName: cleanGroupName, shareTrip: shareTrip,
+    mergeRows: mergeRows, listKind: listKind, itemVer: itemVer,
     cleanTrip: cleanTrip, cleanTrips: cleanTrips, buildBackup: buildBackup, parseBackup: parseBackup, mergeById: mergeById,
     makeId: makeId, upsertTrip: upsertTrip, removeTrip: removeTrip
   };
