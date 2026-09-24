@@ -266,6 +266,8 @@ ul.plain li + li { margin-top: 4px; }
 /* 帳號 */
 .warn-text { color: var(--warn-ink); }
 #acct-who { color: var(--accent); }
+#msg-top { margin: 0 4px 12px; }
+#msg-top:empty { display: none; }
 
 /* 成員名單 */
 .members { display: flex; flex-direction: column; gap: 8px; }
