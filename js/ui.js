@@ -180,7 +180,7 @@
       renderSpaceBar();
     }, function (e) {
       state.syncing = false;
-      setStatus(e.message, true);
+      setStatus(/找不到這個群組/.test(e.message) ? '這個群組已經不存在，到「旅伴」頁按「離開群組」' : e.message, true);
     });
   }
   // 別人改了資料：重畫目前看到的畫面（正在編輯行程時不動，免得打字打到一半被洗掉）
@@ -1052,8 +1052,13 @@
       $('gd-link').value = inv ? L.inviteUrl(location.href, g.groupId, inv) : '（找不到邀請碼，請請建立者重設連結）';
       $('btn-gd-share').classList.toggle('hidden', !navigator.share || !inv);
       $('gd-owner').classList.toggle('hidden', !g.ownerKey);
-      $('gd-rename').value = g.name;
-      $('gd-nick').value = g.nick;
+      // 同步會每 20 秒重畫這一頁：正在打的名稱／暱稱不要被舊值蓋掉，換群組時才重填
+      var fresh = state.gdFor !== g.groupId;
+      state.gdFor = g.groupId;
+      ['gd-rename', 'gd-nick'].forEach(function (id) {
+        var inp = $(id);
+        if (fresh || inp.getAttribute('data-dirty') !== '1') { inp.value = id === 'gd-rename' ? g.name : g.nick; inp.removeAttribute('data-dirty'); }
+      });
       var leave = $('btn-gd-leave'); leave.removeAttribute('data-armed'); leave.textContent = '離開群組';
     }
     var jc = !!state.pendingJoin;
@@ -1116,19 +1121,24 @@
       msg('msg-gd', '舊連結已失效。把新連結傳給要留下的旅伴，他們重新點一次就好。', 'ok');
     }, function (e) { msg('msg-gd', e.message, 'err'); });
   }
+  // 群組在後端已經被刪掉：講清楚怎麼處理，不要只丟一句錯誤
+  function goneHint(m) { return /找不到這個群組/.test(m) ? '這個群組已經不存在（可能被刪除了），請按下面的「離開群組」把它拿掉。' : m; }
   function onRename() {
     var g = group(state.space), name = L.cleanGroupName($('gd-rename').value);
     if (!g || !g.ownerKey) return;
     if (!name) { msg('msg-gd', '請填群組名稱', 'err'); return; }
+    var b = $('btn-gd-rename'); b.disabled = true; msg('msg-gd', '改名中…');
     S.call('renameGroup', { groupId: g.groupId, ownerKey: g.ownerKey, name: name }).then(function () {
+      $('gd-rename').removeAttribute('data-dirty');
       patchGroup(g.groupId, { name: name }); renderSpaceBar(); renderGroups();
       msg('msg-gd', '已改名，旅伴下次同步就會看到。', 'ok');
-    }, function (e) { msg('msg-gd', e.message, 'err'); });
+    }, function (e) { msg('msg-gd', goneHint(e.message), 'err'); }).then(function () { b.disabled = false; });
   }
   function onNick() {
     var g = group(state.space), nick = L.cleanNick($('gd-nick').value);
     if (!g) return;
     if (!nick) { msg('msg-gd', '請填暱稱', 'err'); return; }
+    $('gd-nick').removeAttribute('data-dirty');
     patchGroup(g.groupId, { nick: nick }); renderGroups();
     msg('msg-gd', '已更新，之後的修改會顯示「' + nick + '」。', 'ok');
   }
@@ -1222,6 +1232,7 @@
     $('btn-gd-share').addEventListener('click', onShareInvite);
     $('btn-gd-reset').addEventListener('click', onReset);
     $('btn-gd-rename').addEventListener('click', onRename);
+    ['gd-rename', 'gd-nick'].forEach(function (id) { $(id).addEventListener('input', function () { $(id).setAttribute('data-dirty', '1'); }); });
     $('btn-gd-nick').addEventListener('click', onNick);
     $('btn-gd-leave').addEventListener('click', onLeave);
     $('btn-gd-import').addEventListener('click', onImportWishes);
