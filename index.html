@@ -6,18 +6,24 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=aa1b3f9e">
+<link rel="stylesheet" href="css/style.css?v=28621cac">
 </head>
 <body>
-<div class="acct-top" id="acct-top">
-  <button type="button" class="acct-chip" id="acct-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu">登入</button>
-  <div class="acct-menu hidden" id="acct-menu" role="menu">
-    <div class="acct-menu-name" id="acct-menu-name"></div>
-    <button type="button" role="menuitem" id="btn-acct-settings">帳號設定（改密碼）</button>
-    <button type="button" role="menuitem" class="danger" id="btn-logout">登出</button>
-  </div>
-</div>
 <div class="wrap">
+  <div class="appbar" id="acct-top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">走</span>
+      <div class="brand-txt"><b>說走就走小旅行</b><small>三分鐘排好你的行程</small></div>
+    </div>
+    <div class="acct-wrap">
+      <button type="button" class="acct-chip out" id="acct-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu">登入</button>
+      <div class="acct-menu hidden" id="acct-menu" role="menu">
+        <div class="acct-menu-name" id="acct-menu-name"></div>
+        <button type="button" role="menuitem" id="btn-acct-settings">帳號設定（改密碼）</button>
+        <button type="button" role="menuitem" class="danger" id="btn-logout">登出</button>
+      </div>
+    </div>
+  </div>
   <header class="hero" id="hero">
     <span class="eyebrow-pill"><i class="live"></i>說走就走 · 三分鐘排好你的行程</span>
     <h1>給一個起點，<br><em>剩下的</em>交給說走就走</h1>
@@ -373,6 +379,6 @@
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
 <script src="js/logic.js?v=1d24e941"></script>
-<script src="js/ui.js?v=0aaf2827"></script>
+<script src="js/ui.js?v=8eede1ab"></script>
 </body>
 </html>
