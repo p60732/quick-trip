@@ -80,6 +80,15 @@
   }
   function spaceName(id) { var g = group(id); return g ? g.name : '我自己'; }
   function myNick(spaceId) { var g = group(spaceId); return g ? g.nick : (L.cleanNick(store(KEY_NICK)) || '我'); }
+  // 權限：建立者（有管理碼）或「我自己」可以全部改；旅伴只能加點、改刪自己的點、拖曳行程順序、打勾認領
+  function isOwnerOf(sp) { var g = group(sp); return !sp || !!(g && g.ownerKey); }
+  function guest() { return L.isGuestDevice(groups()); }
+  function canEditWish(w) { return isOwnerOf(state.space) || (!!w.addedBy && w.addedBy === myNick(state.space)); }
+  function applyGuest() {
+    var gu = guest();
+    $('tab-plan').classList.toggle('hidden', gu);
+    $('ng-card').classList.toggle('hidden', gu);
+  }
   function gcache(id) { var c = store(KEY_GC + id); return c && c.items && typeof c.items === 'object' ? c : { since: 0, items: {} }; }
   function setGcache(id, c) { store(KEY_GC + id, { since: c.since, items: c.items }); }
 
@@ -181,7 +190,7 @@
     if (state.view === 'saved') renderSaved();
     if (state.view === 'plan') renderPicks();
     if (state.view === 'group') renderGroups();
-    if (state.view === 'result' && state.plan && !state.editing) {
+    if (state.view === 'result' && state.plan && !state.editing && !state.dragging) {
       if (state.tripId && !state.dirty) {
         var t = tripsIn(state.tripSpace).filter(function (x) { return x.id === state.tripId; })[0];
         if (t) state.plan = t.plan;
@@ -219,7 +228,9 @@
 
   /* ================= 分頁 ================= */
   function show(view) {
+    if (view === 'plan' && guest()) view = 'saved';   // 旅伴不開放 AI 規劃
     state.view = view;
+    applyGuest();
     ['plan', 'wish', 'result', 'saved', 'group'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== view); });
     $('hero').classList.toggle('hidden', view !== 'plan');   // 大標只在規劃頁，其他頁直接看內容
     var tab = view === 'result' ? 'plan' : view;
@@ -234,6 +245,7 @@
     var g = group(state.space);
     $('space-name').textContent = g ? '👥 ' + g.name : '📱 我自己';
     $('space-bar').classList.toggle('hidden', !groups().length && !S.configured());
+    applyGuest();
   }
 
   /* ================= 共用切換 ================= */
@@ -415,7 +427,7 @@
     msg('msg-parse', '');
     state.plan = r.plan;
     state.form = state.form || readForm();
-    state.tripId = null; state.tripSpace = state.space; state.dirty = true; state.editing = false;
+    state.tripId = null; state.tripSpace = state.space; state.tripSavedDate = ''; state.dirty = true; state.editing = false;
     state.day = 0;
     openResult();
   }
@@ -487,12 +499,13 @@
     nm.appendChild(el('span', 'type', L.WISH_KIND[w.kind]));
     nm.appendChild(document.createTextNode(w.name));
     row.appendChild(nm);
-    var meta = [w.note, w.added ? w.added.slice(5).replace('-', '/') + ' 記' : '', by ? by + ' 最後更新' : ''].filter(Boolean).join(' · ');
+    var meta = [w.note, w.added ? w.added.slice(5).replace('-', '/') + ' 記' : '', w.addedBy ? w.addedBy + ' 加的' : by ? by + ' 最後更新' : ''].filter(Boolean).join(' · ');
     if (meta) row.appendChild(el('div', 'meta', meta));
     var act = el('div', 'actions');
     act.appendChild(link('地圖', L.mapSearchUrl(w.name + ' ' + w.city)));
     if (w.url) act.appendChild(link('連結', w.url));
-    if (w.scope === 'domestic' && !w.done) act.appendChild(button('排進行程', 'go', function () { planFromWish(w); }));
+    if (w.scope === 'domestic' && !w.done && !guest()) act.appendChild(button('排進行程', 'go', function () { planFromWish(w); }));
+    if (!canEditWish(w)) { row.appendChild(act); return row; }   // 別人加的點：旅伴只能看
     act.appendChild(button(w.done ? '取消去過' : '去過了', '', function () {
       var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.done = !w.done;
       putItem(state.space, 'wish', w.id, c).then(function () { updateCount(); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
@@ -514,6 +527,9 @@
 
   /* ================= 行程結果 ================= */
   function openResult() {
+    var own = isOwnerOf(state.tripSpace);
+    ['btn-save', 'save-space', 'btn-edit'].forEach(function (id) { $(id).classList.toggle('hidden', !own); });
+    $('btn-back').textContent = own && !guest() ? '← 回去修改' : '← 回到行程';
     renderSaveSpace();
     updateSaveButton();
     msg('msg-result', '');
@@ -543,7 +559,7 @@
     var f = state.form || {};
     var isNew = !(state.tripId && state.tripSpace === sp);
     var id = isNew ? L.makeId(JSON.stringify(state.plan) + (f.date || '') + sp) : state.tripId;
-    var trip = { id: id, savedDate: todayYmd(), form: f, plan: state.plan };
+    var trip = { id: id, savedDate: isNew ? todayYmd() : (state.tripSavedDate || todayYmd()), form: f, plan: state.plan };
     var obj = sp ? L.shareTrip(trip) : L.cleanTrip(trip);
     if (!obj) { msg('msg-result', '行程內容有問題，存不進去', 'err'); return; }
     var b = $('btn-save'); b.disabled = true; b.textContent = '儲存中…';
@@ -554,7 +570,7 @@
       return Promise.all(L.seedChecks(id, state.plan).map(function (c) { return putItem(sp, 'check', c.id, c); }));
     }).then(function () {
       askPersist();
-      state.tripId = id; state.tripSpace = sp; state.dirty = false;
+      state.tripId = id; state.tripSpace = sp; state.dirty = false; state.tripSavedDate = trip.savedDate;
       msg('msg-result', sp ? '已存到「' + spaceName(sp) + '」，旅伴打開就看得到。' : '已存到「我自己」。', 'ok');
       updateSaveButton(); updateCount(); renderPlan();
     }, function (e) {
@@ -568,6 +584,8 @@
 
   function renderPlan() {
     var plan = state.plan, f = state.form || {}, box = $('result');
+    var canEdit = isOwnerOf(state.tripSpace);
+    var canDrag = !state.editing && (canEdit || !!state.tripId);
     box.textContent = '';
     var mode = L.travelMode(f.transport);
 
@@ -603,15 +621,22 @@
       if (plan.days.length > 1) panel.appendChild(el('h3', '', d.label));
       var ul = el('ol', 'timeline');
       d.items.forEach(function (it, ii) {
-        var li = el('li', 'stop c-' + it.type);
+        var drag = canDrag && d.items.length > 1;
+        var li = el('li', 'stop c-' + it.type + (drag ? ' draggable' : ''));
         li.appendChild(el('span', 'num', String(ii + 1)));
         var body = el('div', 'body');
         if (state.editing) body.appendChild(stopEditor(di, ii, it, plan));
         else stopView(body, it, d, di, ii, f, mode);
         li.appendChild(body);
+        if (drag) {
+          var h = el('button', 'drag-h', '⋮⋮'); h.type = 'button';
+          h.setAttribute('aria-label', '拖曳調整「' + it.name + '」的順序（也可以用上下鍵）');
+          li.appendChild(h);
+        }
         ul.appendChild(li);
       });
       panel.appendChild(ul);
+      if (canDrag && d.items.length > 1) bindDrag(ul, di);
       if (state.editing) {
         var tools = el('div', 'day-tools');
         tools.appendChild(button('＋加一站', 'btn small ghost', function () { editStop(function (p) { return L.addStop(p, di); }); }));
@@ -642,7 +667,7 @@
             mb.appendChild(button('加到' + d.label, '', function () { editStop(function (p) { return L.extraToStop(p, xi, di, null); }); }));
           });
           mid.appendChild(mb);
-        } else {
+        } else if (canEdit) {
           o.appendChild(button('加入', 'near-add', function () {
             editStop(function (p) { return L.extraToStop(p, xi, state.day, null); });
             msg('msg-result', '「' + x.name + '」已加到行程最後，可以按「編輯行程」調整時間。', 'ok');
@@ -705,6 +730,82 @@
       tp.appendChild(ul3);
       box.appendChild(tp);
     }
+  }
+
+  /* ================= 拖曳換順序（手指、滑鼠、鍵盤都可以） ================= */
+  function bindDrag(ul, di) {
+    ul.addEventListener('keydown', function (e) {
+      var h = e.target.closest('.drag-h'); if (!h) return;
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      var from = Array.prototype.indexOf.call(ul.children, h.closest('li'));
+      var to = from + (e.key === 'ArrowUp' ? -1 : 1);
+      if (to < 0 || to >= ul.children.length) return;
+      onReorder(di, from, to, true);
+    });
+    ul.addEventListener('pointerdown', function (e) {
+      var h = e.target.closest('.drag-h'); if (!h || e.button > 0) return;
+      var li = h.closest('li'), items = Array.prototype.slice.call(ul.children);
+      var from = items.indexOf(li); if (from < 0) return;
+      e.preventDefault();
+      try { h.setPointerCapture(e.pointerId); } catch (err) {}
+      state.dragging = true;
+      var startY = e.clientY, to = from, step = li.getBoundingClientRect().height;
+      var mids = items.map(function (it) { var r = it.getBoundingClientRect(); return r.top + r.height / 2; });
+      li.classList.add('dragging');
+      ul.classList.add('drag-on');
+      function move(ev) {
+        var dy = ev.clientY - startY, y = mids[from] + dy;
+        li.style.transform = 'translateY(' + dy + 'px)';
+        to = 0;
+        mids.forEach(function (m, i) { if (i !== from && y > m) to++; });
+        items.forEach(function (it, i) {
+          if (it === li) return;
+          var shift = from < to && i > from && i <= to ? -step : to < from && i >= to && i < from ? step : 0;
+          it.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        });
+      }
+      function up() {
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
+        items.forEach(function (it) { it.style.transform = ''; });
+        li.classList.remove('dragging'); ul.classList.remove('drag-on');
+        state.dragging = false;
+        if (to !== from) onReorder(di, from, to);
+      }
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
+    });
+  }
+  function onReorder(di, from, to, keepFocus) {
+    var next = L.reorderStop(state.plan, di, from, to);
+    if (next === state.plan) return;
+    state.plan = next;
+    renderPlan();
+    if (keepFocus) {
+      var hs = $('result').querySelectorAll('.day-panel')[di].querySelectorAll('.drag-h');
+      if (hs[to]) hs[to].focus();
+    }
+    if (!state.tripId) { markDirty(); return; }
+    saveOrder();
+  }
+  // 已存的行程：換完順序直接存回去（旅伴也可以，後端只允許換順序）
+  function saveOrder() {
+    var sp = state.tripSpace, id = state.tripId;
+    var trip = { id: id, savedDate: state.tripSavedDate || todayYmd(), form: state.form || {}, plan: state.plan };
+    var obj = sp ? L.shareTrip(trip) : L.cleanTrip(trip);
+    if (!obj) return;
+    msg('msg-result', '儲存順序中…');
+    putItem(sp, 'trip', id, obj).then(function () {
+      state.dirty = false; updateSaveButton();
+      msg('msg-result', '已更新順序' + (sp ? '，旅伴那邊也會看到。' : '。'), 'ok');
+    }, function (e) {
+      msg('msg-result', e.message, 'err');
+      var t = tripsIn(sp).filter(function (x) { return x.id === id; })[0];   // 存失敗就換回伺服器上的版本
+      if (t) { state.plan = t.plan; renderPlan(); }
+    });
   }
 
   function stopView(body, it, d, di, ii, f, mode) {
@@ -803,7 +904,7 @@
       box.appendChild(c0);
       return;
     }
-    var sp = state.tripSpace, tripId = state.tripId, me = myNick(sp);
+    var sp = state.tripSpace, tripId = state.tripId, me = myNick(sp), canEdit = isOwnerOf(sp);
     var list = checksIn(sp, tripId);
     var cb = el('div', 'card glass sec');
     cb.appendChild(el('h3', '', '出發前確認' + (sp ? '（大家都能勾、可以認領）' : '')));
@@ -820,12 +921,13 @@
       } else {
         li.appendChild(button('我來', 'who', function () { saveCheck(c, { who: me }); }));
       }
-      li.appendChild(armed(button('刪', 'who', null), '確定？', function () {
+      if (canEdit) li.appendChild(armed(button('刪', 'who', null), '確定？', function () {
         delItem(sp, 'check', c.id).then(function () { renderPlan(); }, function (e) { msg('msg-result', e.message, 'err'); });
       }));
       ul.appendChild(li);
     });
     cb.appendChild(ul);
+    if (!canEdit) { box.appendChild(cb); return; }   // 旅伴：只能打勾、認領
     var add = el('div', 'check-add');
     var inp = el('input'); inp.type = 'text'; inp.maxLength = 100; inp.placeholder = '加一項，例：帶行動電源'; inp.setAttribute('aria-label', '新增確認項目');
     add.appendChild(inp);
@@ -907,7 +1009,7 @@
     $('saved-space-hint').textContent = state.space ? '「' + spaceName(state.space) + '」共用的行程，旅伴存的也在這裡。' : '';
     $('backup-card').classList.toggle('hidden', !!state.space);
     box.textContent = '';
-    if (!list.length) { box.appendChild(el('div', 'card empty', '還沒有存任何行程。排好一趟之後按「存起來」。')); return; }
+    if (!list.length) { box.appendChild(el('div', 'card empty', guest() ? '建立者還沒有分享行程，排好後會出現在這裡。' : '還沒有存任何行程。排好一趟之後按「存起來」。')); return; }
     list.forEach(function (t) {
       var card = el('div', 'card trip-item');
       var g = el('div', 'grow');
@@ -916,12 +1018,12 @@
       g.appendChild(el('div', 'meta', [f.date ? L.dayLabel(f.date) : '', L.destText(f)].filter(Boolean).join(' · ')));
       card.appendChild(g);
       card.appendChild(button('打開', 'btn small', function () {
-        state.plan = t.plan; state.form = f; state.tripId = t.id; state.tripSpace = state.space;
+        state.plan = t.plan; state.form = f; state.tripId = t.id; state.tripSpace = state.space; state.tripSavedDate = t.savedDate;
         state.dirty = false; state.editing = false; state.day = 0;
         openResult();
       }));
       var sp = state.space;
-      card.appendChild(armed(button('刪除', 'btn small ghost', null), '確定刪除？', function () {
+      if (isOwnerOf(sp)) card.appendChild(armed(button('刪除', 'btn small ghost', null), '確定刪除？', function () {
         delItem(sp, 'trip', t.id).then(function () { updateCount(); renderSaved(); }, function (e) { msg('msg-backup', e.message, 'err'); });
       }));
       box.appendChild(card);
@@ -1097,7 +1199,7 @@
     $('btn-export').addEventListener('click', onExport);
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', onImportFile);
-    $('btn-back').addEventListener('click', function () { show('plan'); });
+    $('btn-back').addEventListener('click', function () { show(isOwnerOf(state.tripSpace) && !guest() ? 'plan' : 'saved'); });
     $('btn-save').addEventListener('click', onSave);
     $('save-space').addEventListener('change', updateSaveButton);
     $('btn-edit').addEventListener('click', function () {
@@ -1127,6 +1229,7 @@
     renderSpaceBar(); statusIdle();
     renderPicks();
     updateCount();
+    if (guest()) show('saved'); else applyGuest();
 
     // 邀請連結：#join=群組.邀請碼 → 先從網址列拿掉（免得被截圖或轉傳），再請使用者填暱稱
     function takeInvite() {

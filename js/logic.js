@@ -334,7 +334,8 @@
       wish: {
         id: String(id || ''), name: name, scope: scope, kind: kind, city: city,
         note: clean_(w.note).slice(0, 200), url: url, done: w.done === true,
-        added: /^\d{4}-\d{2}-\d{2}$/.test(String(addedYmd || w.added || '')) ? String(addedYmd || w.added) : ''
+        added: /^\d{4}-\d{2}-\d{2}$/.test(String(addedYmd || w.added || '')) ? String(addedYmd || w.added) : '',
+        addedBy: clean_(w.addedBy).slice(0, 20)   // 群組裡由後端填，旅伴只能改刪自己加的
       }
     };
   }
@@ -448,6 +449,20 @@
       if (!hasStop_(p, d, i) || !hasStop_(p, d, j)) return false;
       var its = p.days[d].items, t = its[i]; its[i] = its[j]; its[j] = t;
     });
+  }
+  // 拖曳換順序：站點搬到新位置，時間留在原本的格子（行程時間仍由早到晚）
+  function reorderStop(plan, d, from, to) {
+    return editPlan_(plan, function (p) {
+      if (!hasStop_(p, d, from) || !hasStop_(p, d, to) || from === to) return false;
+      var its = p.days[d].items, times = its.map(function (x) { return x.time; });
+      its.splice(to, 0, its.splice(from, 1)[0]);
+      its.forEach(function (x, k) { x.time = times[k]; });
+    });
+  }
+  // 旅伴裝置：有加入群組、但一個都不是自己建立的 → 不開放 AI 規劃
+  function isGuestDevice(groups) {
+    var gs = Array.isArray(groups) ? groups : [];
+    return gs.length > 0 && !gs.some(function (g) { return g && g.ownerKey; });
   }
   function removeStop(plan, d, i) {
     return editPlan_(plan, function (p) {
@@ -615,7 +630,7 @@
 
   var api = {
     TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, TW_REGIONS: TW_REGIONS, TW_CITIES: TW_CITIES,
-    TRANSPORTS: TRANSPORTS, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
+    TRANSPORTS: TRANSPORTS, reorderStop: reorderStop, isGuestDevice: isGuestDevice, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
     WISH_SCOPE: WISH_SCOPE, WISH_KIND: WISH_KIND, WISH_MAX: LIMIT.wishes,
     isTwCity: isTwCity, guessCity: guessCity, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
     normOrigin: normOrigin, originText: originText, originPlace: originPlace, destText: destText,
