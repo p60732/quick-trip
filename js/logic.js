@@ -554,17 +554,36 @@
   function cleanNick(s) { return clean_(s).slice(0, 20); }
   var KEY_RE_ = /^[A-Za-z0-9]{16,64}$/, GID_RE_ = /^[A-Za-z0-9_-]{6,40}$/;
   // 本機記住的群組清單：格式不對的丟掉；邀請碼、管理碼各自檢查
+  // memberId＋memberKey：這支手機在群組裡的專屬身分。舊版只有 key（邀請碼或管理碼），之後會自動補綁
   function cleanGroups(list) {
     var seen = {};
     return (Array.isArray(list) ? list : []).map(function (g) {
-      if (!g || typeof g !== 'object' || !GID_RE_.test(g.groupId) || !KEY_RE_.test(g.key) || seen[g.groupId]) return null;
+      if (!g || typeof g !== 'object' || !GID_RE_.test(g.groupId) || seen[g.groupId]) return null;
+      var k = function (v) { return KEY_RE_.test(v) ? v : ''; };
+      var bound = GID_RE_.test(g.memberId) && KEY_RE_.test(g.memberKey);
+      if (!bound && !k(g.key) && !k(g.inviteKey) && !k(g.ownerKey)) return null;
       seen[g.groupId] = true;
       return {
-        groupId: g.groupId, name: cleanGroupName(g.name) || '未命名群組', key: g.key,
-        inviteKey: KEY_RE_.test(g.inviteKey) ? g.inviteKey : '', ownerKey: KEY_RE_.test(g.ownerKey) ? g.ownerKey : '',
+        groupId: g.groupId, name: cleanGroupName(g.name) || '未命名群組', key: k(g.key),
+        inviteKey: k(g.inviteKey), ownerKey: k(g.ownerKey),
+        memberId: bound ? g.memberId : '', memberKey: bound ? g.memberKey : '',
         nick: cleanNick(g.nick) || '我'
       };
     }).filter(Boolean).slice(0, 20);
+  }
+  // 成員名單（後端 pull 帶回來）：只留要顯示的欄位
+  function cleanMembers(list) {
+    return (Array.isArray(list) ? list : []).filter(function (m) { return m && GID_RE_.test(m.memberId); }).slice(0, 100).map(function (m) {
+      return { memberId: m.memberId, nick: cleanNick(m.nick), role: m.role === 'owner' ? 'owner' : 'member',
+        status: ['active', 'released', 'kicked', 'left'].indexOf(m.status) !== -1 ? m.status : 'active' };
+    });
+  }
+  // 顯示「誰」：成員編號換成暱稱；離開的人標示；舊資料是暱稱字串就原樣顯示
+  function memberLabel(members, id) {
+    if (!id) return '';
+    var m = (Array.isArray(members) ? members : []).filter(function (x) { return x.memberId === id; })[0];
+    if (!m) return /^m[0-9a-f]{15}$/.test(id) ? '（不明成員）' : cleanNick(id);
+    return m.nick + (m.status === 'kicked' || m.status === 'left' ? '（已離開）' : '');
   }
   function cleanGroupName(s) { return clean_(s).slice(0, 40); }
   // 分享到群組的行程：拿掉家裡地址，只留「自家」
@@ -630,7 +649,7 @@
 
   var api = {
     TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, TW_REGIONS: TW_REGIONS, TW_CITIES: TW_CITIES,
-    TRANSPORTS: TRANSPORTS, reorderStop: reorderStop, isGuestDevice: isGuestDevice, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
+    TRANSPORTS: TRANSPORTS, reorderStop: reorderStop, cleanMembers: cleanMembers, memberLabel: memberLabel, isGuestDevice: isGuestDevice, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
     WISH_SCOPE: WISH_SCOPE, WISH_KIND: WISH_KIND, WISH_MAX: LIMIT.wishes,
     isTwCity: isTwCity, guessCity: guessCity, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
     normOrigin: normOrigin, originText: originText, originPlace: originPlace, destText: destText,

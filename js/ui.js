@@ -83,14 +83,41 @@
   // 權限：建立者（有管理碼）或「我自己」可以全部改；旅伴只能加點、改刪自己的點、拖曳行程順序、打勾認領
   function isOwnerOf(sp) { var g = group(sp); return !sp || !!(g && g.ownerKey); }
   function guest() { return L.isGuestDevice(groups()); }
-  function canEditWish(w) { return isOwnerOf(state.space) || (!!w.addedBy && w.addedBy === myNick(state.space)); }
+  function myId(sp) { var g = group(sp); return g ? g.memberId : ''; }
+  function canEditWish(w) { return isOwnerOf(state.space) || (!!w.addedBy && w.addedBy === myId(state.space)); }
+  function membersIn(sp) { return sp ? L.cleanMembers(gcache(sp).members) : []; }
+  function who(sp, id) { return sp ? L.memberLabel(membersIn(sp), id) : id; }
+
+  // 這支手機在群組裡的專屬身分。舊版加入的群組沒有鑰匙 → 自動補綁（建立者用管理碼領回，旅伴用原暱稱加入）
+  var binding = {};
+  function withMe(sp) {
+    var g = group(sp);
+    if (!g) return Promise.reject(new Error('找不到這個群組'));
+    if (g.memberId && g.memberKey) return Promise.resolve({ groupId: g.groupId, memberId: g.memberId, memberKey: g.memberKey });
+    if (binding[sp]) return binding[sp];
+    var req = g.ownerKey ? S.call('claimOwner', { groupId: g.groupId, ownerKey: g.ownerKey, nick: g.nick })
+      : S.call('joinGroup', { groupId: g.groupId, key: g.inviteKey || g.key, nick: g.nick });
+    binding[sp] = req.then(function (d) {
+      patchGroup(sp, { memberId: d.memberId, memberKey: d.memberKey, nick: d.nick });
+      delete binding[sp];
+      return { groupId: g.groupId, memberId: d.memberId, memberKey: d.memberKey };
+    }, function (e) { delete binding[sp]; throw e; });
+    return binding[sp];
+  }
+  function withMeCall(sp, action, extra) {
+    return withMe(sp).then(function (me) {
+      var p = {}; Object.keys(me).forEach(function (k) { p[k] = me[k]; });
+      Object.keys(extra || {}).forEach(function (k) { p[k] = extra[k]; });
+      return S.call(action, p);
+    });
+  }
   function applyGuest() {
     var gu = guest();
     $('tab-plan').classList.toggle('hidden', gu);
     $('ng-card').classList.toggle('hidden', gu);
   }
   function gcache(id) { var c = store(KEY_GC + id); return c && c.items && typeof c.items === 'object' ? c : { since: 0, items: {} }; }
-  function setGcache(id, c) { store(KEY_GC + id, { since: c.since, items: c.items }); }
+  function setGcache(id, c) { store(KEY_GC + id, { since: c.since, items: c.items, members: c.members || gcache(id).members || [] }); }
 
   /* ================= 資料層：同一套呼叫，「我自己」存手機、群組走後端 ================= */
   function wishesIn(sp) {
@@ -132,10 +159,8 @@
     var g = group(sp);
     if (!g) return Promise.reject(new Error('找不到這個群組'));
     var body = {}; Object.keys(obj).forEach(function (k) { if (k !== 'id') body[k] = obj[k]; });
-    return S.call('put', {
-      groupId: g.groupId, key: g.key, kind: kind, itemId: id, json: JSON.stringify(body),
-      baseVer: L.itemVer(gcache(sp), kind, id), nick: g.nick
-    }).then(function (d) { return afterWrite(sp, d); });
+    return withMeCall(sp, 'put', { kind: kind, itemId: id, json: JSON.stringify(body), baseVer: L.itemVer(gcache(sp), kind, id) })
+      .then(function (d) { return afterWrite(sp, d); });
   }
   function delItem(sp, kind, id) {
     if (!sp) {
@@ -144,9 +169,8 @@
     }
     var g = group(sp);
     if (!g) return Promise.reject(new Error('找不到這個群組'));
-    return S.call('del', {
-      groupId: g.groupId, key: g.key, kind: kind, itemId: id, baseVer: L.itemVer(gcache(sp), kind, id), nick: g.nick
-    }).then(function (d) { return afterWrite(sp, d); });
+    return withMeCall(sp, 'del', { kind: kind, itemId: id, baseVer: L.itemVer(gcache(sp), kind, id) })
+      .then(function (d) { return afterWrite(sp, d); });
   }
   function afterWrite(sp, d) {
     setGcache(sp, L.mergeRows(gcache(sp), d && d.item ? [d.item] : []));
@@ -169,10 +193,16 @@
     if (!g || !S.configured() || state.syncing) return Promise.resolve();
     state.syncing = true; setStatus('同步中…');
     var sp = g.groupId;
-    return S.call('pull', { groupId: g.groupId, key: g.key, since: gcache(sp).since }).then(function (d) {
-      var c2 = L.mergeRows(gcache(sp), d.items);
+    return withMeCall(sp, 'pull', { since: gcache(sp).since }).then(function (d) {
+      if (!group(sp)) { state.syncing = false; return; }   // 同步途中已經離開這個群組：不要把快取寫回來
+      var c2 = L.mergeRows(gcache(sp), d.items), mem = L.cleanMembers(d.members);
+      if (JSON.stringify(mem) !== JSON.stringify(membersIn(sp))) c2.changed = true;
+      c2.members = mem;
       setGcache(sp, c2);
-      if (d.name && d.name !== g.name) patchGroup(sp, { name: L.cleanGroupName(d.name) });
+      var fix = {};
+      if (d.name && d.name !== g.name) fix.name = L.cleanGroupName(d.name);
+      if (d.me && d.me.nick && d.me.nick !== group(sp).nick) fix.nick = L.cleanNick(d.me.nick);   // 暱稱以後端為準
+      if (Object.keys(fix).length) patchGroup(sp, fix);
       state.lastSync = Date.now();
       state.syncing = false;
       statusIdle();
@@ -181,6 +211,9 @@
     }, function (e) {
       state.syncing = false;
       setStatus(/找不到這個群組/.test(e.message) ? '這個群組已經不存在，到「旅伴」頁按「離開群組」' : e.message, true);
+      if (/已經有人用了/.test(e.message)) {   // 舊版補綁時暱稱撞到：請他換一個暱稱重新加入
+        var gg = group(sp); state.pendingJoin = { groupId: gg.groupId, key: gg.inviteKey || gg.key }; if (state.view === 'group') renderGroups();
+      }
     });
   }
   // 別人改了資料：重畫目前看到的畫面（正在編輯行程時不動，免得打字打到一半被洗掉）
@@ -189,7 +222,8 @@
     if (state.view === 'wish') renderWishes();
     if (state.view === 'saved') renderSaved();
     if (state.view === 'plan') renderPicks();
-    if (state.view === 'group') renderGroups();
+    // 旅伴頁有按鈕正在等「確定？」時先不重畫，免得確認鈕被洗掉
+    if (state.view === 'group' && !document.querySelector('#view-group [data-armed="1"]')) renderGroups();
     if (state.view === 'result' && state.plan && !state.editing && !state.dragging) {
       if (state.tripId && !state.dirty) {
         var t = tripsIn(state.tripSpace).filter(function (x) { return x.id === state.tripId; })[0];
@@ -243,7 +277,7 @@
   }
   function renderSpaceBar() {
     var g = group(state.space);
-    $('space-name').textContent = g ? '👥 ' + g.name : '📱 我自己';
+    $('space-name').textContent = g ? '👥 ' + g.name + ' · 你是 ' + g.nick : '📱 我自己';
     $('space-bar').classList.toggle('hidden', !groups().length && !S.configured());
     applyGuest();
   }
@@ -499,7 +533,7 @@
     nm.appendChild(el('span', 'type', L.WISH_KIND[w.kind]));
     nm.appendChild(document.createTextNode(w.name));
     row.appendChild(nm);
-    var meta = [w.note, w.added ? w.added.slice(5).replace('-', '/') + ' 記' : '', w.addedBy ? w.addedBy + ' 加的' : by ? by + ' 最後更新' : ''].filter(Boolean).join(' · ');
+    var meta = [w.note, w.added ? w.added.slice(5).replace('-', '/') + ' 記' : '', w.addedBy ? who(state.space, w.addedBy) + ' 加的' : by ? by + ' 最後更新' : ''].filter(Boolean).join(' · ');
     if (meta) row.appendChild(el('div', 'meta', meta));
     var act = el('div', 'actions');
     act.appendChild(link('地圖', L.mapSearchUrl(w.name + ' ' + w.city)));
@@ -904,7 +938,7 @@
       box.appendChild(c0);
       return;
     }
-    var sp = state.tripSpace, tripId = state.tripId, me = myNick(sp), canEdit = isOwnerOf(sp);
+    var sp = state.tripSpace, tripId = state.tripId, me = sp ? myId(sp) : myNick(sp), canEdit = isOwnerOf(sp);
     var list = checksIn(sp, tripId);
     var cb = el('div', 'card glass sec');
     cb.appendChild(el('h3', '', '出發前確認' + (sp ? '（大家都能勾、可以認領）' : '')));
@@ -917,7 +951,8 @@
       lab.appendChild(ck); lab.appendChild(el('span', 't', c.text));
       li.appendChild(lab);
       if (c.who) {
-        li.appendChild(button(c.who + ' 負責 ×', 'who' + (c.who === me ? ' mine' : ''), function () { saveCheck(c, { who: '' }); }));
+        var mine = c.who === me || (sp && c.who === myNick(sp));
+        li.appendChild(button(who(sp, c.who) + ' 負責 ×', 'who' + (mine ? ' mine' : ''), function () { saveCheck(c, { who: '' }); }));
       } else {
         li.appendChild(button('我來', 'who', function () { saveCheck(c, { who: me }); }));
       }
@@ -1035,7 +1070,7 @@
     $('group-off').classList.toggle('hidden', S.configured());
     var list = $('space-list'); list.textContent = '';
     [{ groupId: '', name: '📱 我自己', note: '只存在這支手機' }].concat(groups().map(function (g) {
-      return { groupId: g.groupId, name: '👥 ' + g.name, note: '暱稱：' + g.nick + (g.ownerKey ? ' · 你建立的' : '') };
+      return { groupId: g.groupId, name: '👥 ' + g.name, note: '你是「' + g.nick + '」' + (g.ownerKey ? ' · 你建立的' : '') };
     })).forEach(function (o) {
       var b = el('button', '', o.name); b.type = 'button';
       b.appendChild(el('small', '', o.note));
@@ -1047,7 +1082,7 @@
     $('group-detail').classList.toggle('hidden', !g);
     if (g) {
       $('gd-name').textContent = g.name;
-      $('gd-meta').textContent = '你的暱稱：' + g.nick + (state.lastSync ? ' · 最後同步 ' + hhmm(state.lastSync) : '');
+      $('gd-meta').textContent = '你在這個群組是「' + g.nick + '」' + (state.lastSync ? ' · 最後同步 ' + hhmm(state.lastSync) : '');
       var inv = g.inviteKey || (g.ownerKey ? '' : g.key);
       $('gd-link').value = inv ? L.inviteUrl(location.href, g.groupId, inv) : '（找不到邀請碼，請請建立者重設連結）';
       $('btn-gd-share').classList.toggle('hidden', !navigator.share || !inv);
@@ -1059,11 +1094,48 @@
         var inp = $(id);
         if (fresh || inp.getAttribute('data-dirty') !== '1') { inp.value = id === 'gd-rename' ? g.name : g.nick; inp.removeAttribute('data-dirty'); }
       });
-      var leave = $('btn-gd-leave'); leave.removeAttribute('data-armed'); leave.textContent = '離開群組';
+      var leave = $('btn-gd-leave');   // 「確定離開？」按到一半遇到同步重畫，不要被重設
+      if (fresh || leave.getAttribute('data-armed') !== '1') { leave.removeAttribute('data-armed'); leave.textContent = '離開群組'; }
+      renderMembers(g);
     }
     var jc = !!state.pendingJoin;
     $('join-card').classList.toggle('hidden', !jc);
     if (jc && !$('join-nick').value) $('join-nick').value = L.cleanNick(store(KEY_NICK));
+  }
+  // 成員名單：誰在群組裡；建立者可以「釋放」（換手機用）或「移出」
+  var STATUS_TEXT = { released: '已釋放，等本人用同暱稱重新加入', kicked: '已移出', left: '已離開' };
+  function renderMembers(g) {
+    var box = $('gd-members'), list = membersIn(g.groupId), owner = !!g.ownerKey;
+    box.textContent = '';
+    $('gd-members-hint').classList.toggle('hidden', !owner);
+    if (!list.length) { box.appendChild(el('div', 'hint2', '同步後會列出成員。')); return; }
+    var order = { active: 0, released: 1, kicked: 2, left: 3 };
+    list.slice().sort(function (a, b) { return order[a.status] - order[b.status] || (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0); }).forEach(function (m) {
+      var row = el('div', 'member' + (m.status === 'active' ? '' : ' gone'));
+      var nm = el('div', 'grow');
+      nm.appendChild(el('span', 'name', m.nick));
+      if (m.role === 'owner') nm.appendChild(el('span', 'badge', '建立者'));
+      if (m.memberId === g.memberId) nm.appendChild(el('span', 'badge me', '你'));
+      if (STATUS_TEXT[m.status]) nm.appendChild(el('div', 'meta', STATUS_TEXT[m.status]));
+      row.appendChild(nm);
+      if (owner && m.role !== 'owner' && (m.status === 'active' || m.status === 'released')) {
+        var mb = el('div', 'mini-btns');
+        if (m.status === 'active') mb.appendChild(armed(button('釋放', '', null), '確定釋放？', function () { removeMember(g, m, 'release'); }));
+        mb.appendChild(armed(button('移出', 'danger', null), '確定移出？', function () { removeMember(g, m, 'kick'); }));
+        row.appendChild(mb);
+      }
+      box.appendChild(row);
+    });
+  }
+  function removeMember(g, m, mode) {
+    msg('msg-gd', mode === 'release' ? '釋放中…' : '移出中…');
+    withMeCall(g.groupId, 'removeMember', { targetId: m.memberId, mode: mode }).then(function (d) {
+      var c = gcache(g.groupId); c.members = L.cleanMembers(d.members); setGcache(g.groupId, c);
+      renderGroups();
+      msg('msg-gd', mode === 'release'
+        ? '已釋放「' + m.nick + '」。請他用同一個暱稱重新點邀請連結，就能拿回原本加的點。'
+        : '已把「' + m.nick + '」移出群組，他加過的點會留著並標示已離開。要防他再加入，記得按「重設邀請連結」。', 'ok');
+    }, function (e) { msg('msg-gd', e.message, 'err'); });
   }
 
   function onCreateGroup() {
@@ -1071,7 +1143,7 @@
     if (!name || !nick) { msg('msg-ng', '群組名稱和暱稱都要填', 'err'); return; }
     var b = $('btn-ng'); b.disabled = true; msg('msg-ng', '建立中…');
     S.call('createGroup', { name: name, nick: nick }).then(function (d) {
-      upsertGroup({ groupId: d.groupId, name: d.name, key: d.ownerKey, inviteKey: d.inviteKey, ownerKey: d.ownerKey, nick: nick });
+      upsertGroup({ groupId: d.groupId, name: d.name, key: d.ownerKey, inviteKey: d.inviteKey, ownerKey: d.ownerKey, memberId: d.memberId, memberKey: d.memberKey, nick: d.nick });
       store(KEY_NICK, nick);
       $('ng-name').value = '';
       msg('msg-ng', '已建立「' + name + '」。把上面的邀請連結傳給旅伴就可以了。', 'ok');
@@ -1083,44 +1155,65 @@
     if (!j) return;
     if (!nick) { msg('msg-join', '請填暱稱', 'err'); $('join-nick').focus(); return; }
     var b = $('btn-join'); b.disabled = true; msg('msg-join', '加入中…');
-    doJoin(j, nick).then(null, function (e) { msg('msg-join', e.message, 'err'); }).then(function () { b.disabled = false; });
+    doJoin(j, nick).then(null, function (e) { msg('msg-join', e.message, 'err'); $('join-nick').focus(); }).then(function () { b.disabled = false; });
   }
-  // 驗證邀請碼 → 記住群組 → 切過去。回傳 Promise
+  // 用邀請碼加入：後端發一把只屬於這支手機的鑰匙。回傳 Promise
   function doJoin(j, nick) {
-    return S.call('joinGroup', { groupId: j.groupId, key: j.key }).then(function (d) {
+    return S.call('joinGroup', { groupId: j.groupId, key: j.key, nick: nick }).then(function (d) {
       var old = group(j.groupId);
       upsertGroup({
-        groupId: j.groupId, name: d.name, key: old && old.ownerKey ? old.ownerKey : j.key,
-        inviteKey: j.key, ownerKey: old ? old.ownerKey : '', nick: old ? old.nick : nick
+        groupId: j.groupId, name: d.name, key: old && old.ownerKey ? old.ownerKey : '',
+        inviteKey: j.key, ownerKey: old ? old.ownerKey : '', memberId: d.memberId, memberKey: d.memberKey, nick: d.nick
       });
-      store(KEY_NICK, old ? old.nick : nick);
+      store(KEY_NICK, d.nick);
+      store(KEY_GC + j.groupId, null);   // 身分換了，快取重抓
       state.pendingJoin = null;
       msg('msg-join', '');
       switchSpace(j.groupId); show('group');
-      msg('msg-gd', old ? '你已經在「' + d.name + '」了，已切換過來。'
-        : '已加入「' + d.name + '」！暱稱是「' + nick + '」（下面可以改）。' + (guest() ? '到「行程」分頁看大家的行程。' : ''), 'ok');
+      msg('msg-gd', '已加入「' + d.name + '」！你在這個群組是「' + d.nick + '」（下面可以改）。' + (guest() ? '到「行程」分頁看大家的行程。' : ''), 'ok');
     });
   }
-  // 點邀請連結：手機記得暱稱就直接加入；第一次用才請他填暱稱（先顯示是哪個群組邀請）
+  // 點邀請連結：
+  // 已經在群組、身分還有效 → 直接切換；手機記得暱稱 → 直接加入；第一次用 → 先顯示是哪個群組、請他填暱稱
   function handleInvite(inv) {
-    var nick = group(inv.groupId) ? group(inv.groupId).nick : L.cleanNick(store(KEY_NICK));
-    if (nick) {
+    var g = group(inv.groupId);
+    if (g && g.memberId) {
       state.pendingJoin = null;
-      show('group');
-      msg('msg-gd', '加入中…');
-      doJoin(inv, nick).then(null, function (e) {
-        state.pendingJoin = inv; renderGroups();   // 連結失效等：留在加入畫面顯示原因
-        $('join-hint').textContent = '';
-        msg('msg-join', e.message, 'err'); msg('msg-gd', '');
+      if (inv.key !== g.inviteKey && !g.ownerKey) patchGroup(g.groupId, { inviteKey: inv.key });
+      switchSpace(g.groupId); show('group');
+      msg('msg-gd', '確認身分中…');
+      withMeCall(g.groupId, 'pull', { since: Date.now() }).then(function () {
+        msg('msg-gd', '你已經在「' + g.name + '」了，你是「' + g.nick + '」。', 'ok');
+      }, function (e) {
+        if (!/釋放|驗證失敗|離開|移出/.test(e.message)) { msg('msg-gd', e.message, 'err'); return; }
+        patchGroup(g.groupId, { memberId: '', memberKey: '' });   // 舊身分不能用了：用同暱稱重新加入
+        joinWithNick(inv, g.nick);
       });
       return;
     }
+    var nick = g ? g.nick : L.cleanNick(store(KEY_NICK));
+    if (nick && !g) { joinWithNick(inv, nick); return; }
+    if (g) { state.pendingJoin = null; switchSpace(g.groupId); show('group'); pullNow(); return; }   // 舊版群組：同步時自動補綁
+    askNick(inv, '');
+  }
+  function joinWithNick(inv, nick) {
+    state.pendingJoin = null;
+    show('group');
+    msg('msg-gd', '加入中…');
+    doJoin(inv, nick).then(null, function (e) {
+      msg('msg-gd', '');
+      askNick(inv, /已經有人用了/.test(e.message) ? e.message : '', e);
+    });
+  }
+  function askNick(inv, why, err) {
     state.pendingJoin = inv;
     show('group');
     $('join-hint').textContent = '正在確認邀請…';
-    S.call('joinGroup', { groupId: inv.groupId, key: inv.key }).then(function (d) {
+    if (err && !why) { $('join-hint').textContent = ''; msg('msg-join', err.message, 'err'); return; }
+    S.call('previewGroup', { groupId: inv.groupId, key: inv.key }).then(function (d) {
       if (state.pendingJoin !== inv) return;
       $('join-hint').textContent = '「' + d.name + '」邀請你一起規劃行程。填個暱稱，旅伴就知道是誰加的。';
+      if (why) msg('msg-join', why, 'err');
     }, function (e) {
       if (state.pendingJoin !== inv) return;
       $('join-hint').textContent = '';
@@ -1146,10 +1239,10 @@
   }
   function onReset() {
     var g = group(state.space); if (!g || !g.ownerKey) return;
-    S.call('resetInvite', { groupId: g.groupId, ownerKey: g.ownerKey }).then(function (d) {
+    withMeCall(g.groupId, 'resetInvite', {}).then(function (d) {
       patchGroup(g.groupId, { inviteKey: d.inviteKey });
       renderGroups();
-      msg('msg-gd', '舊連結已失效。把新連結傳給要留下的旅伴，他們重新點一次就好。', 'ok');
+      msg('msg-gd', '舊連結已不能再用來加入（已經加入的人不受影響）。要邀新的人就傳新連結。', 'ok');
     }, function (e) { msg('msg-gd', e.message, 'err'); });
   }
   // 群組在後端已經被刪掉：講清楚怎麼處理，不要只丟一句錯誤
@@ -1159,7 +1252,7 @@
     if (!g || !g.ownerKey) return;
     if (!name) { msg('msg-gd', '請填群組名稱', 'err'); return; }
     var b = $('btn-gd-rename'); b.disabled = true; msg('msg-gd', '改名中…');
-    S.call('renameGroup', { groupId: g.groupId, ownerKey: g.ownerKey, name: name }).then(function () {
+    withMeCall(g.groupId, 'renameGroup', { name: name }).then(function () {
       $('gd-rename').removeAttribute('data-dirty');
       patchGroup(g.groupId, { name: name }); renderSpaceBar(); renderGroups();
       msg('msg-gd', '已改名，旅伴下次同步就會看到。', 'ok');
@@ -1169,22 +1262,33 @@
     var g = group(state.space), nick = L.cleanNick($('gd-nick').value);
     if (!g) return;
     if (!nick) { msg('msg-gd', '請填暱稱', 'err'); return; }
-    $('gd-nick').removeAttribute('data-dirty');
-    patchGroup(g.groupId, { nick: nick }); renderGroups();
-    msg('msg-gd', '已更新，之後的修改會顯示「' + nick + '」。', 'ok');
+    var b = $('btn-gd-nick'); b.disabled = true; msg('msg-gd', '更新中…');
+    withMeCall(g.groupId, 'setNick', { nick: nick }).then(function (d) {
+      $('gd-nick').removeAttribute('data-dirty');
+      patchGroup(g.groupId, { nick: d.nick }); store(KEY_NICK, d.nick);
+      renderSpaceBar(); pullNow(); renderGroups();
+      msg('msg-gd', '已改成「' + d.nick + '」，你加過的點也會一起顯示新名字。', 'ok');
+    }, function (e) { msg('msg-gd', goneHint(e.message), 'err'); }).then(function () { b.disabled = false; });
   }
   function onLeave() {
     var g = group(state.space), b = $('btn-gd-leave');
     if (!g) return;
     if (b.getAttribute('data-armed') !== '1') {
       b.setAttribute('data-armed', '1');
-      b.textContent = g.ownerKey ? '確定？你是建立者，離開後就不能重設連結了' : '確定離開？（資料留在群組裡）';
+      b.textContent = g.ownerKey ? '確定？你是建立者，只會從這支手機移除（群組留著）' : '確定離開？（你加的點會留著）';
       return;
     }
-    saveGroups(groups().filter(function (x) { return x.groupId !== g.groupId; }));
-    store(KEY_GC + g.groupId, null);
-    switchSpace(''); renderGroups();
-    msg('msg-ng', '已離開「' + g.name + '」。', 'ok');
+    function forget() {
+      b.removeAttribute('data-armed'); b.textContent = '離開群組'; state.gdFor = null;
+      saveGroups(groups().filter(function (x) { return x.groupId !== g.groupId; }));
+      store(KEY_GC + g.groupId, null);
+      switchSpace(''); renderGroups();
+      msg('msg-ng', '已離開「' + g.name + '」。', 'ok');
+    }
+    // 旅伴：通知後端讓出暱稱；後端連不上或群組已不存在，也照樣從手機移除
+    if (g.ownerKey || !g.memberId) { forget(); return; }
+    b.disabled = true;
+    withMeCall(g.groupId, 'leaveGroup', {}).then(forget, forget).then(function () { b.disabled = false; });
   }
   function onImportWishes() {
     var sp = state.space; if (!sp) return;
