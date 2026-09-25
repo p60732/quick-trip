@@ -234,7 +234,7 @@
   // 別人改了資料：重畫目前看到的畫面（正在編輯行程時不動，免得打字打到一半被洗掉）
   function refreshViews() {
     updateCount();
-    if (state.view === 'wish') renderWishes();
+    if (state.view === 'wish' && !state.wEdit) renderWishes();   // 正在原地編輯某筆願望時不重畫，免得打到一半被洗掉
     if (state.view === 'saved') renderSaved();
     if (state.view === 'plan') renderPicks();
     // 旅伴頁有按鈕正在等「確定？」時先不重畫，免得確認鈕被洗掉
@@ -280,6 +280,7 @@
   function show(view) {
     if (view === 'plan' && guest()) view = 'saved';   // 旅伴不開放 AI 規劃
     state.view = view;
+    if (view !== 'wish') state.wEdit = null;
     closeAcctMenu();
     applyGuest();
     ['plan', 'wish', 'result', 'saved', 'group'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== view); });
@@ -576,51 +577,99 @@
   function clearWishForm() {
     $('w-name').value = ''; $('w-note').value = ''; $('w-url').value = ''; $('w-map').value = ''; $('w-abroad').value = '';
   }
-  // 編輯：把這筆願望放回上面的表單，按「儲存修改」寫回同一筆
+  // 編輯：在那筆願望底下展開小表單，原地改完按「儲存修改」
   function startEditWish(w) {
-    state.editWish = w;
-    $('w-map').value = w.mapUrl || ''; $('w-name').value = w.name;
-    setSeg('w-scope', w.scope); setSeg('w-kind', w.kind); syncWishScope();
-    if (w.scope === 'abroad') $('w-abroad').value = w.city; else $('w-city').value = w.city;
-    $('w-note').value = w.note || ''; $('w-url').value = w.url || '';
-    syncWishEdit();
-    msg('msg-wish', '改好按「儲存修改」。', 'ok');
-    $('wish-form').scrollIntoView({ block: 'start' });
-    try { $('w-name').focus({ preventScroll: true }); } catch (e) {}
+    state.wEdit = { id: w.id, d: { name: w.name, scope: w.scope, kind: w.kind, city: w.city, note: w.note || '', url: w.url || '', mapUrl: w.mapUrl || '' } };
+    renderWishes();
+    var inp = document.querySelector('.wish-edit .we-name');
+    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) {} inp.closest('.wish').scrollIntoView({ block: 'nearest' }); }
   }
-  function stopEditWish(keepMsg) {
-    if (!state.editWish) return;
-    state.editWish = null; clearWishForm(); syncWishEdit();
-    if (!keepMsg) msg('msg-wish', '');
+  function stopEditWish() {
+    if (!state.wEdit) return;
+    state.wEdit = null;
+    if (state.view === 'wish') renderWishes();
   }
-  function syncWishEdit() {
-    var w = state.editWish;
-    $('wish-form-h').textContent = w ? '修改「' + w.name + '」' : '看到想去的，先記下來';
-    $('btn-wish-add').textContent = w ? '儲存修改' : '加入願望清單';
-    $('btn-wish-cancel').classList.toggle('hidden', !w);
-    $('wish-form').classList.toggle('editing', !!w);
+  function wishEditor(w) {
+    var ed = state.wEdit, d = ed.d;
+    var box = el('div', 'wish-edit');
+    var field = function (label, cls, val, ph, type) {
+      var lb = el('label', 'f'); lb.appendChild(el('span', '', label));
+      var i = el('input', cls); i.type = type || 'text'; i.value = val || ''; if (ph) i.placeholder = ph;
+      lb.appendChild(i); box.appendChild(lb); return i;
+    };
+    var seg = function (cls, opts, cur, onPick) {
+      var g = el('div', 'seg ' + cls);
+      opts.forEach(function (o) {
+        var b = button(o[1], '', function () { onPick(o[0]); });
+        b.setAttribute('data-v', o[0]); b.setAttribute('aria-pressed', String(o[0] === cur));
+        g.appendChild(b);
+      });
+      return g;
+    };
+    var nm = field('地方或店名', 'we-name', d.name, '');
+    nm.maxLength = 100; nm.addEventListener('input', function () { d.name = nm.value; });
+    var row = el('div', 'row');
+    var c1 = el('div', 'f'); c1.appendChild(el('span', 'lbl', '範圍'));
+    c1.appendChild(seg('we-scope', [['domestic', '國內'], ['abroad', '國外']], d.scope, function (v) {
+      if (v === d.scope) return; d.scope = v; d.city = v === 'domestic' ? (L.isTwCity(d.city) ? d.city : '') : (L.isTwCity(d.city) ? '' : d.city); renderWishes();
+    }));
+    var c2 = el('div', 'f'); c2.appendChild(el('span', 'lbl', '種類'));
+    c2.appendChild(seg('we-kind', Object.keys(L.WISH_KIND).map(function (k) { return [k, L.WISH_KIND[k]]; }), d.kind, function (v) {
+      d.kind = v; each(box.querySelectorAll('.we-kind button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === v)); });
+    }));
+    row.appendChild(c1); row.appendChild(c2); box.appendChild(row);
+    if (d.scope === 'abroad') {
+      var ab = field('國家／城市', 'we-abroad', d.city, '例：日本 京都'); ab.maxLength = 60;
+      ab.addEventListener('input', function () { d.city = ab.value; });
+    } else {
+      var lb = el('label', 'f'); lb.appendChild(el('span', '', '縣市'));
+      var sel = el('select', 'we-city'); fillCityOptions(sel, '請選擇縣市'); sel.value = d.city;
+      sel.addEventListener('change', function () { d.city = sel.value; });
+      lb.appendChild(sel); box.appendChild(lb);
+    }
+    var mp = field('Google 地圖連結（選填）', 'we-map', d.mapUrl, 'https://maps.app.goo.gl/…'); mp.maxLength = 600;
+    mp.addEventListener('input', function () { d.mapUrl = mp.value; });
+    var nt = field('備註（選填）', 'we-note', d.note, '例：朋友推薦、要排隊'); nt.maxLength = 200;
+    nt.addEventListener('input', function () { d.note = nt.value; });
+    var ul = field('連結（選填，IG／文章）', 'we-url', d.url, 'https://', 'url'); ul.maxLength = 500;
+    ul.addEventListener('input', function () { d.url = ul.value; });
+    var bt = el('div', 'btns');
+    var save = button('儲存修改', 'btn small we-save', function () { saveWishEdit(w, save); });
+    bt.appendChild(save);
+    bt.appendChild(button('取消', 'btn small ghost we-cancel', function () { stopEditWish(); }));
+    box.appendChild(bt);
+    box.appendChild(el('div', 'msg we-msg'));
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') stopEditWish(); if (e.key === 'Enter' && e.target.tagName === 'INPUT') saveWishEdit(w, save); });
+    return box;
+  }
+  function saveWishEdit(w, btn) {
+    var d = state.wEdit && state.wEdit.d, m = btn.closest('.wish-edit').querySelector('.we-msg');
+    if (!d) return;
+    var say = function (t, k) { m.textContent = t; m.className = 'msg we-msg' + (k ? ' ' + k : ''); };
+    var mapUrl = String(d.mapUrl || '').trim();
+    if (mapUrl && !L.isGmapUrl(mapUrl)) { var pm = L.parseMapShare(mapUrl); if (!pm) { say('Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; } mapUrl = pm.mapUrl; }
+    var input = { name: d.name, scope: d.scope, kind: d.kind, city: d.city, note: d.note, url: d.url, mapUrl: mapUrl, done: w.done, addedBy: w.addedBy };
+    var r = L.normalizeWish(input, w.id, w.added);
+    if (!r.ok) { say(r.error, 'err'); return; }
+    if (!wishes().some(function (x) { return x.id === w.id; })) { state.wEdit = null; renderWishes(); msg('msg-wish', '這筆願望已經被刪掉了，沒辦法修改。', 'err'); return; }
+    btn.disabled = true; say('儲存中…');
+    putItem(state.space, 'wish', w.id, r.wish).then(function () {
+      state.wEdit = null;
+      setSeg('wf-scope', r.wish.scope); updateCount(); renderWishes();
+      var row = document.querySelector('.wish[data-id="' + w.id + '"]');
+      if (row) { row.classList.add('just-saved'); var mm = el('div', 'msg ok', '已修改'); row.appendChild(mm); setTimeout(function () { mm.remove(); row.classList.remove('just-saved'); }, 2500); }
+    }, function (e) { say(e.message, 'err'); btn.disabled = false; });
   }
   function onWishAdd() {
-    var scope = segValue('w-scope'), ed = state.editWish;
+    var scope = segValue('w-scope');
     var input = {
       name: $('w-name').value, scope: scope, kind: segValue('w-kind'),
       city: scope === 'abroad' ? $('w-abroad').value : $('w-city').value,
-      note: $('w-note').value, url: $('w-url').value, mapUrl: mapFromBox(),
-      done: ed ? ed.done : false, addedBy: ed ? ed.addedBy : ''
+      note: $('w-note').value, url: $('w-url').value, mapUrl: mapFromBox()
     };
     if (input.mapUrl === null) { msg('msg-wish', 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; }
-    var r = ed ? L.normalizeWish(input, ed.id, ed.added) : L.normalizeWish(input, newId('w'), todayYmd());
+    var r = L.normalizeWish(input, newId('w'), todayYmd());
     if (!r.ok) { msg('msg-wish', r.error, 'err'); return; }
-    if (ed) {
-      if (!wishes().some(function (x) { return x.id === ed.id; })) { stopEditWish(true); msg('msg-wish', '這筆願望已經被刪掉了，沒辦法修改。', 'err'); renderWishes(); return; }
-      var bt = $('btn-wish-add'); bt.disabled = true; msg('msg-wish', '儲存中…');
-      putItem(state.space, 'wish', ed.id, r.wish).then(function () {
-        stopEditWish(true);
-        msg('msg-wish', '已修改：' + r.wish.name, 'ok');
-        setSeg('wf-scope', r.wish.scope); updateCount(); renderWishes();
-      }, function (e) { msg('msg-wish', e.message, 'err'); }).then(function () { bt.disabled = false; });
-      return;
-    }
     if (wishes().length >= L.WISH_MAX) { msg('msg-wish', '願望清單滿了（' + L.WISH_MAX + ' 筆），先刪掉一些去過的吧', 'err'); return; }
     var btn = $('btn-wish-add'); btn.disabled = true;
     msg('msg-wish', state.space ? '儲存中…' : '');
@@ -633,6 +682,7 @@
   }
   function renderWishes() {
     var box = $('wish-list'), all = wishes(), by = wishByMap(state.space);
+    if (state.wEdit && !all.some(function (x) { return x.id === state.wEdit.id; })) state.wEdit = null;
     $('wish-space-hint').textContent = state.space ? '這是「' + spaceName(state.space) + '」共用的清單，旅伴加的也會出現在這裡。' : '';
     box.textContent = '';
     var list = L.filterWishes(all, { scope: segValue('wf-scope'), kind: segValue('wf-kind'), showDone: $('wf-done').checked });
@@ -649,6 +699,7 @@
   }
   function wishRow(w, by) {
     var row = el('div', 'wish kind-' + w.kind + (w.done ? ' done' : ''));
+    row.setAttribute('data-id', w.id);
     var nm = el('div', 'name');
     nm.appendChild(el('span', 'type', L.WISH_KIND[w.kind]));
     nm.appendChild(document.createTextNode(w.name));
@@ -660,6 +711,7 @@
     if (w.url) act.appendChild(link('連結', w.url));
     if (w.scope === 'domestic' && !w.done && !guest()) act.appendChild(button('排進行程', 'go', function () { planFromWish(w); }));
     if (!canEditWish(w)) { row.appendChild(act); return row; }   // 別人加的點：旅伴只能看
+    if (state.wEdit && state.wEdit.id === w.id) { row.classList.add('editing'); row.appendChild(wishEditor(w)); return row; }
     act.appendChild(button('編輯', '', function () { startEditWish(w); }));
     act.appendChild(button(w.done ? '取消去過' : '去過了', '', function () {
       var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.done = !w.done;
@@ -667,7 +719,7 @@
     }));
     act.appendChild(armed(button('刪除', '', null), '確定刪除？', function () {
       delete state.picked[w.id];
-      if (state.editWish && state.editWish.id === w.id) stopEditWish();
+      if (state.wEdit && state.wEdit.id === w.id) state.wEdit = null;
       delItem(state.space, 'wish', w.id).then(function () { updateCount(); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
     }));
     row.appendChild(act);
@@ -1765,7 +1817,6 @@
     $('btn-copy').addEventListener('click', function () { onCopy(false); });
     $('btn-parse').addEventListener('click', onParse);
     $('btn-wish-add').addEventListener('click', onWishAdd);
-    $('btn-wish-cancel').addEventListener('click', function () { stopEditWish(); });
     $('share-prefix').value = location.href.split('#')[0].split('?')[0] + '#add=';
     $('btn-share-copy').addEventListener('click', onShareCopy);
     fillCityOptions($('imp-city-all'), '選縣市');
