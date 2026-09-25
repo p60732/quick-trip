@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=7ec24628">
+<link rel="stylesheet" href="css/style.css?v=9ac42b0e">
 </head>
 <body>
 <div class="wrap">
@@ -58,8 +58,9 @@
   </header>
 
   <div class="card glass" id="login-card">
-    <h2 class="step-h">登入</h2>
-    <p class="hint">登入後，行程、願望清單和群組都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
+    <h2 class="step-h">先登入再開始</h2>
+    <p class="hint">登入後才能規劃行程、存願望清單和跟旅伴共用。資料都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
+    <p class="hint2 ok-text hidden" id="login-invite"></p>
     <p class="hint2 warn-text hidden" id="acct-legacy">這支手機上有之前加入的群組，登入後會自動搬到你的帳號。</p>
     <div class="row stack">
       <label class="f"><span>名字 <small>（不能跟別人重複）</small></span><input type="text" id="acct-name" maxlength="20" autocomplete="username" placeholder="例：佩芝"></label>
@@ -69,7 +70,6 @@
       <button type="button" class="btn" id="btn-login">登入</button>
       <button type="button" class="btn ghost" id="btn-signup">第一次用：建立帳號</button>
     </div>
-    <div class="btns"><button type="button" class="btn ghost small" id="btn-skip-login">先不登入，只存在這支手機</button></div>
     <div class="msg" id="msg-login" role="status"></div>
   </div>
   <div class="msg" id="msg-top" role="status"></div>
@@ -373,6 +373,6 @@
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
 <script src="js/logic.js?v=1d24e941"></script>
-<script src="js/ui.js?v=6582ed00"></script>
+<script src="js/ui.js?v=21fd6c4a"></script>
 </body>
 </html>
