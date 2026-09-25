@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=031cb3db">
+<link rel="stylesheet" href="css/style.css?v=ceced746">
 </head>
 <body>
 <div class="wrap">
@@ -227,6 +227,7 @@
         <div class="f"><span class="lbl">種類</span>
           <div class="seg" id="w-kind">
             <button type="button" data-v="eat" aria-pressed="true">吃的</button>
+            <button type="button" data-v="drink" aria-pressed="false">喝的</button>
             <button type="button" data-v="play" aria-pressed="false">玩的</button>
           </div>
         </div>
@@ -263,7 +264,7 @@
       <ol class="steps">
         <li>用電腦打開 <b>takeout.google.com</b>（Google 匯出），先按「取消全選」，只勾「已儲存」和「地圖（你的地點）」，建立匯出。</li>
         <li>下載後解壓縮：「已儲存」資料夾裡每個清單是一個 <b>.csv</b>；「地圖（你的地點）」裡有加標籤的地點和已儲存的地點 <b>.json</b>。（英文介面叫 Saved、Maps (your places)）</li>
-        <li>在下面選這些檔案，可以一次選好幾個；會先列出來讓你確認縣市、吃的還是玩的。</li>
+        <li>在下面選這些檔案，可以一次選好幾個；會先列出來讓你確認縣市，還有是吃的、喝的還是玩的。</li>
       </ol>
       <input type="file" id="imp-file" accept=".csv,.json,text/csv,application/json" multiple aria-label="選擇 Google 匯出的檔案">
       <div class="msg" id="msg-imp" role="status"></div>
@@ -291,6 +292,7 @@
         <div class="seg" id="wf-kind">
           <button type="button" data-v="all" aria-pressed="true">全部</button>
           <button type="button" data-v="eat" aria-pressed="false">吃的</button>
+          <button type="button" data-v="drink" aria-pressed="false">喝的</button>
           <button type="button" data-v="play" aria-pressed="false">玩的</button>
         </div>
         <label class="inline-check"><input type="checkbox" id="wf-done"> 顯示去過的</label>
@@ -431,7 +433,7 @@
 </div>
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
-<script src="js/logic.js?v=91a784ed"></script>
-<script src="js/ui.js?v=e3d6de66"></script>
+<script src="js/logic.js?v=49a081ac"></script>
+<script src="js/ui.js?v=ac1e6546"></script>
 </body>
 </html>
