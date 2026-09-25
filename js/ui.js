@@ -538,7 +538,7 @@
     if (!list.length) return;
     $('wish-picks-title').textContent = (state.space ? '「' + spaceName(state.space) + '」' : '') + '願望清單裡的' + city + '（點選要排進去的）';
     list.forEach(function (w) {
-      var b = el('button', 'chip ' + (w.kind === 'eat' ? 'kind-eat' : 'kind-play'), (w.kind === 'eat' ? '吃・' : '玩・') + w.name);
+      var b = el('button', 'chip kind-' + w.kind, ({ eat: '吃・', drink: '喝・', play: '玩・' }[w.kind] || '') + w.name);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(!!state.picked[w.id]));
       b.addEventListener('click', function () {
@@ -648,7 +648,7 @@
     });
   }
   function wishRow(w, by) {
-    var row = el('div', 'wish ' + (w.kind === 'eat' ? 'kind-eat' : 'kind-play') + (w.done ? ' done' : ''));
+    var row = el('div', 'wish kind-' + w.kind + (w.done ? ' done' : ''));
     var nm = el('div', 'name');
     nm.appendChild(el('span', 'type', L.WISH_KIND[w.kind]));
     nm.appendChild(document.createTextNode(w.name));
@@ -727,7 +727,7 @@
       state.imp = rows.slice(0, L.WISH_MAX);
       renderImp();
       var n = rows.filter(function (x) { return !x.dup; }).length;
-      msg('msg-imp', (rows.length ? '找到 ' + rows.length + ' 個地點' + (rows.length - n ? '（' + (rows.length - n) + ' 個已經在清單裡，先不勾）' : '') + '，確認縣市和吃的／玩的再加入。' : '沒有找到地點。') + (errs.length ? ' ' + errs.join('；') : ''), rows.length ? 'ok' : 'err');
+      msg('msg-imp', (rows.length ? '找到 ' + rows.length + ' 個地點' + (rows.length - n ? '（' + (rows.length - n) + ' 個已經在清單裡，先不勾）' : '') + '，確認縣市和吃的／喝的／玩的再加入。' : '沒有找到地點。') + (errs.length ? ' ' + errs.join('；') : ''), rows.length ? 'ok' : 'err');
     }, function (e) { msg('msg-imp', '讀不到檔案：' + e.message, 'err'); });
   }
   function renderImp() {
@@ -754,8 +754,8 @@
         sel.classList.toggle('need', sel.value === '');
       });
       ctl.appendChild(sel);
-      var kb = button(L.WISH_KIND[x.d.kind], 'btn small ghost kind-btn', function () { x.d.kind = x.d.kind === 'eat' ? 'play' : 'eat'; kb.textContent = L.WISH_KIND[x.d.kind]; });
-      kb.setAttribute('aria-label', '切換吃的／玩的');
+      var kb = button(L.WISH_KIND[x.d.kind], 'btn small ghost kind-btn', function () { x.d.kind = { eat: 'drink', drink: 'play', play: 'eat' }[x.d.kind] || 'eat'; kb.textContent = L.WISH_KIND[x.d.kind]; });
+      kb.setAttribute('aria-label', '切換吃的／喝的／玩的');
       ctl.appendChild(kb);
       mid.appendChild(ctl);
       row.appendChild(mid);

@@ -31,7 +31,7 @@
     '台鐵台南站', '台鐵高雄站', '台鐵宜蘭站', '台鐵花蓮站', '台鐵台東站'
   ];
   var WISH_SCOPE = { domestic: '國內', abroad: '國外' };
-  var WISH_KIND = { eat: '吃的', play: '玩的' };
+  var WISH_KIND = { eat: '吃的', drink: '喝的', play: '玩的' };
 
   function isTwCity(c) { return TW_CITIES.indexOf(c) !== -1; }
   // 從一段文字猜縣市（舊版草稿只有「高雄 鈴鹿賽道樂園」這種字串時用）
@@ -158,7 +158,7 @@
     lines.push('- 出發地：' + originText(f.origin));
     lines.push('- 目的地縣市：' + (isTwCity(f.city) ? clean_(f.city) : '（請依主要想去的點判斷）'));
     if (clean_(f.destination)) lines.push('- 主要想去（一定要去）：' + clean_(f.destination));
-    if (picks.length) lines.push('- 願望清單裡想順便去／吃（盡量排進去，排不進去就放到附近備選）：' + picks.join('、'));
+    if (picks.length) lines.push('- 願望清單裡想順便去／吃／喝（盡量排進去，排不進去就放到附近備選）：' + picks.join('、'));
     if (clean_(f.mustDo)) lines.push('- 其他指定想去／想吃：' + clean_(f.mustDo));
     lines.push('- 日期：' + dates);
     lines.push('- 交通方式：' + tlist.join('、') + (tlist.length > 1 ? '（可以混合搭配，每一段選最順的）' : ''));
@@ -456,8 +456,14 @@
     if (!out.length) return { ok: false, error: '檔案裡沒有地點' };
     return { ok: true, places: out.slice(0, LIMIT.wishes) };
   }
-  var EAT_RE_ = /餐|食|麵|飯|粥|咖啡|café|cafe|coffee|茶|飲|甜|冰|豆花|燒|烤|鍋|肉|魚|蝦|蟹|雞|鴨|牛|豬|羊|滷|炸|酒|吧|bar|小吃|早午餐|早餐|便當|壽司|拉麵|丼|披薩|pizza|漢堡|burger|麵包|烘焙|蛋糕|甜點|bistro|restaurant|kitchen|廚房|食堂|料理|美食|夜市/i;
-  function guessKind(name) { return EAT_RE_.test(String(name || '')) ? 'eat' : 'play'; }
+  var MEAL_RE_ = /餐|麵|飯|粥|鍋|食堂|料理|小吃|便當|壽司|丼|披薩|pizza|漢堡|burger|restaurant|kitchen|廚房|bistro/i;
+  var DRINK_RE_ = /咖啡|café|cafe|coffee|茶|飲|手搖|果汁|奶昔|酒|啤酒|精釀|吧|bar|pub|brew|tea/i;
+  var EAT_RE_ = /食|甜|冰|豆花|燒|烤|肉|魚|蝦|蟹|雞|鴨|牛|豬|羊|滷|炸|早午餐|早餐|拉麵|麵包|烘焙|蛋糕|甜點|美食|夜市/i;
+  // 猜吃的／喝的／玩的：有正餐字眼算吃的（茶餐廳、酒吧餐廳），再看喝的，最後才是其他吃的
+  function guessKind(name) {
+    var s = String(name || '');
+    return MEAL_RE_.test(s) ? 'eat' : DRINK_RE_.test(s) ? 'drink' : EAT_RE_.test(s) ? 'eat' : 'play';
+  }
   // 把一個匯出的地點轉成願望草稿（縣市猜不到就留空，讓使用者選）
   function placeToWish(pl) {
     var p = pl && typeof pl === 'object' ? pl : {};
@@ -484,7 +490,7 @@
     var url = clean_(w.url).slice(0, 500);
     if (!name) return { ok: false, error: '請填想去的地方或店名' };
     if (!scope) return { ok: false, error: '請選國內或國外' };
-    if (!kind) return { ok: false, error: '請選吃的或玩的' };
+    if (!kind) return { ok: false, error: '請選吃的、喝的或玩的' };
     if (scope === 'domestic' && !isTwCity(city)) return { ok: false, error: '請選縣市' };
     if (scope === 'abroad' && !city) return { ok: false, error: '請填國家或城市' };
     if (url && !/^https?:\/\/[^\s]+$/i.test(url)) return { ok: false, error: '連結要是 http 或 https 開頭' };
@@ -507,7 +513,7 @@
       return r.ok && r.wish.id ? r.wish : null;
     }).filter(Boolean);
   }
-  // opt: {scope, kind:'all'|'eat'|'play', showDone}
+  // opt: {scope, kind:'all'|'eat'|'drink'|'play', showDone}
   function filterWishes(list, opt) {
     opt = opt || {};
     return (Array.isArray(list) ? list : []).filter(function (w) {
