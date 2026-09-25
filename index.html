@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f1522">
+<meta name="theme-color" content="#f3f6fb">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=33c0646a">
+<link rel="stylesheet" href="css/style.css?v=efd12bde">
 </head>
 <body>
 <div class="wrap">
@@ -394,6 +394,12 @@
           <button type="button" class="btn small ghost" id="btn-gd-reset">重設邀請連結</button>
         </div>
         <p class="hint2">連結被轉傳出去時按「重設」：舊連結不能再用來加入，已經加入的人不受影響。</p>
+        <details class="more slim danger-zone" id="gd-del-box">
+          <summary>刪除這個群組</summary>
+          <p class="hint2">刪除後所有旅伴都看不到這個群組的願望清單和行程，邀請連結也會失效，刪了就沒辦法自己救回來。確定要刪，請打上群組名稱「<b id="gd-del-name"></b>」。</p>
+          <input type="text" id="gd-del-input" maxlength="40" autocomplete="off" aria-label="打上群組名稱確認刪除">
+          <div class="btns"><button type="button" class="btn small danger" id="btn-gd-del" disabled>刪除群組</button></div>
+        </details>
       </div>
       <h3 class="sub-h">成員</h3>
       <div class="members" id="gd-members"></div>
@@ -434,6 +440,6 @@
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
 <script src="js/logic.js?v=49a081ac"></script>
-<script src="js/ui.js?v=6db89236"></script>
+<script src="js/ui.js?v=cea9fdc9"></script>
 </body>
 </html>
