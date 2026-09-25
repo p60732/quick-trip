@@ -251,6 +251,7 @@
     state.space = group(id) ? id : '';
     store(KEY_SPACE, state.space);
     state.picked = {}; state.lastSync = 0;
+    stopEditWish();
     renderSpaceBar(); statusIdle(); refreshViews();
     pullNow();
   }
@@ -530,22 +531,60 @@
     else if (r.name && !$('w-name').value.trim()) $('w-name').value = r.name;
     msg('msg-wish', r.name || $('w-name').value.trim() ? '已帶入 Google 地圖的地點，選好縣市就能加入。' : '已放入地圖連結，請填上店名。', 'ok');
   }
+  function clearWishForm() {
+    $('w-name').value = ''; $('w-note').value = ''; $('w-url').value = ''; $('w-map').value = ''; $('w-abroad').value = '';
+  }
+  // 編輯：把這筆願望放回上面的表單，按「儲存修改」寫回同一筆
+  function startEditWish(w) {
+    state.editWish = w;
+    $('w-map').value = w.mapUrl || ''; $('w-name').value = w.name;
+    setSeg('w-scope', w.scope); setSeg('w-kind', w.kind); syncWishScope();
+    if (w.scope === 'abroad') $('w-abroad').value = w.city; else $('w-city').value = w.city;
+    $('w-note').value = w.note || ''; $('w-url').value = w.url || '';
+    syncWishEdit();
+    msg('msg-wish', '改好按「儲存修改」。', 'ok');
+    $('wish-form').scrollIntoView({ block: 'start' });
+    try { $('w-name').focus({ preventScroll: true }); } catch (e) {}
+  }
+  function stopEditWish(keepMsg) {
+    if (!state.editWish) return;
+    state.editWish = null; clearWishForm(); syncWishEdit();
+    if (!keepMsg) msg('msg-wish', '');
+  }
+  function syncWishEdit() {
+    var w = state.editWish;
+    $('wish-form-h').textContent = w ? '修改「' + w.name + '」' : '看到想去的，先記下來';
+    $('btn-wish-add').textContent = w ? '儲存修改' : '加入願望清單';
+    $('btn-wish-cancel').classList.toggle('hidden', !w);
+    $('wish-form').classList.toggle('editing', !!w);
+  }
   function onWishAdd() {
-    var scope = segValue('w-scope');
+    var scope = segValue('w-scope'), ed = state.editWish;
     var input = {
       name: $('w-name').value, scope: scope, kind: segValue('w-kind'),
       city: scope === 'abroad' ? $('w-abroad').value : $('w-city').value,
-      note: $('w-note').value, url: $('w-url').value, mapUrl: mapFromBox()
+      note: $('w-note').value, url: $('w-url').value, mapUrl: mapFromBox(),
+      done: ed ? ed.done : false, addedBy: ed ? ed.addedBy : ''
     };
     if (input.mapUrl === null) { msg('msg-wish', 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; }
-    var r = L.normalizeWish(input, newId('w'), todayYmd());
+    var r = ed ? L.normalizeWish(input, ed.id, ed.added) : L.normalizeWish(input, newId('w'), todayYmd());
     if (!r.ok) { msg('msg-wish', r.error, 'err'); return; }
+    if (ed) {
+      if (!wishes().some(function (x) { return x.id === ed.id; })) { stopEditWish(true); msg('msg-wish', '這筆願望已經被刪掉了，沒辦法修改。', 'err'); renderWishes(); return; }
+      var bt = $('btn-wish-add'); bt.disabled = true; msg('msg-wish', '儲存中…');
+      putItem(state.space, 'wish', ed.id, r.wish).then(function () {
+        stopEditWish(true);
+        msg('msg-wish', '已修改：' + r.wish.name, 'ok');
+        setSeg('wf-scope', r.wish.scope); updateCount(); renderWishes();
+      }, function (e) { msg('msg-wish', e.message, 'err'); }).then(function () { bt.disabled = false; });
+      return;
+    }
     if (wishes().length >= L.WISH_MAX) { msg('msg-wish', '願望清單滿了（' + L.WISH_MAX + ' 筆），先刪掉一些去過的吧', 'err'); return; }
     var btn = $('btn-wish-add'); btn.disabled = true;
     msg('msg-wish', state.space ? '儲存中…' : '');
     putItem(state.space, 'wish', r.wish.id, r.wish).then(function () {
       msg('msg-wish', '已加入：' + r.wish.name + (state.space ? '（旅伴也看得到）' : ''), 'ok');
-      $('w-name').value = ''; $('w-note').value = ''; $('w-url').value = ''; $('w-map').value = '';
+      clearWishForm();
       setSeg('wf-scope', r.wish.scope);   // 篩選切到剛加的那一類，才看得到
       updateCount(); renderWishes();
     }, function (e) { msg('msg-wish', e.message, 'err'); }).then(function () { btn.disabled = false; });
@@ -579,32 +618,18 @@
     if (w.url) act.appendChild(link('連結', w.url));
     if (w.scope === 'domestic' && !w.done && !guest()) act.appendChild(button('排進行程', 'go', function () { planFromWish(w); }));
     if (!canEditWish(w)) { row.appendChild(act); return row; }   // 別人加的點：旅伴只能看
-    if (!w.mapUrl) act.appendChild(button('綁地圖', '', function () { bindMapRow(row, w); }));
+    act.appendChild(button('編輯', '', function () { startEditWish(w); }));
     act.appendChild(button(w.done ? '取消去過' : '去過了', '', function () {
       var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.done = !w.done;
       putItem(state.space, 'wish', w.id, c).then(function () { updateCount(); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
     }));
     act.appendChild(armed(button('刪除', '', null), '確定刪除？', function () {
       delete state.picked[w.id];
+      if (state.editWish && state.editWish.id === w.id) stopEditWish();
       delItem(state.space, 'wish', w.id).then(function () { updateCount(); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
     }));
     row.appendChild(act);
     return row;
-  }
-  // 舊的願望補綁 Google 地圖連結
-  function bindMapRow(row, w) {
-    if (row.querySelector('.bind-map')) return;
-    var box = el('div', 'bind-map');
-    var inp = el('input'); inp.type = 'text'; inp.placeholder = '貼上 Google 地圖的分享連結'; inp.setAttribute('aria-label', 'Google 地圖連結');
-    box.appendChild(inp);
-    box.appendChild(button('存', 'btn small', function () {
-      var r = L.parseMapShare(inp.value);
-      if (!r) { msg('msg-wish', 'Google 地圖連結不對：請在 Google 地圖按「分享」→「複製連結」再貼上', 'err'); return; }
-      var c = {}; Object.keys(w).forEach(function (k) { c[k] = w[k]; }); c.mapUrl = r.mapUrl;
-      putItem(state.space, 'wish', w.id, c).then(function () { msg('msg-wish', '「' + w.name + '」已綁上 Google 地圖。', 'ok'); renderWishes(); }, function (e) { msg('msg-wish', e.message, 'err'); });
-    }));
-    row.appendChild(box);
-    try { inp.focus(); } catch (e) {}
   }
   function planFromWish(w) {
     if ($('f-city').value !== w.city) { $('f-city').value = w.city; state.picked = {}; }
@@ -1549,6 +1574,7 @@
     $('btn-copy').addEventListener('click', function () { onCopy(false); });
     $('btn-parse').addEventListener('click', onParse);
     $('btn-wish-add').addEventListener('click', onWishAdd);
+    $('btn-wish-cancel').addEventListener('click', function () { stopEditWish(); });
     $('w-map').addEventListener('input', function () { onMapPaste(false); });
     $('w-name').addEventListener('input', function () { if (/https:\/\//.test($('w-name').value)) onMapPaste(true); });
     $('btn-export').addEventListener('click', onExport);
