@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=4b4b212e">
+<link rel="stylesheet" href="css/style.css?v=031cb3db">
 </head>
 <body>
 <div class="wrap">
@@ -243,6 +243,44 @@
       <div class="msg" id="msg-wish" role="status"></div>
     </div>
 
+    <details class="card fold" id="share-card">
+      <summary>用 iPhone 分享鍵一鍵存</summary>
+      <p class="hint">做一次「捷徑」，以後在 Google 地圖或 IG 按「分享」→「存到願望清單」，就會打開這裡並填好店名和連結，確認縣市按加入就好。</p>
+      <ol class="steps">
+        <li>打開「捷徑」App，按右上角「＋」新增捷徑，名稱取「存到願望清單」。</li>
+        <li>點下方的「ⓘ」（或上方名稱 →「詳細資訊」），打開「在分享表單中顯示」。</li>
+        <li>加入動作「URL 編碼」，輸入選「捷徑輸入」。</li>
+        <li>加入動作「文字」，貼上下面這串，再在最後面插入變數「已編碼的 URL」。</li>
+        <li>加入動作「打開 URL」（輸入選上一步的「文字」），完成。</li>
+      </ol>
+      <div class="copy-row"><input type="text" id="share-prefix" readonly aria-label="捷徑要用的網址開頭"><button type="button" class="btn small" id="btn-share-copy">複製</button></div>
+      <p class="hint2">iOS 版本不同，動作名稱可能略有差異（例如「編碼 URL」「開啟 URL」）。Google 地圖分享時如果只帶連結沒有店名，店名欄再自己補上。</p>
+      <div class="msg" id="msg-share" role="status"></div>
+    </details>
+
+    <details class="card fold" id="imp-card">
+      <summary>從 Google 地圖匯入已存的地點</summary>
+      <ol class="steps">
+        <li>用電腦打開 <b>takeout.google.com</b>（Google 匯出），先按「取消全選」，只勾「已儲存」和「地圖（你的地點）」，建立匯出。</li>
+        <li>下載後解壓縮：「已儲存」資料夾裡每個清單是一個 <b>.csv</b>；「地圖（你的地點）」裡有加標籤的地點和已儲存的地點 <b>.json</b>。（英文介面叫 Saved、Maps (your places)）</li>
+        <li>在下面選這些檔案，可以一次選好幾個；會先列出來讓你確認縣市、吃的還是玩的。</li>
+      </ol>
+      <input type="file" id="imp-file" accept=".csv,.json,text/csv,application/json" multiple aria-label="選擇 Google 匯出的檔案">
+      <div class="msg" id="msg-imp" role="status"></div>
+      <div id="imp-preview" class="hidden">
+        <div class="imp-bulk">
+          <span>還沒選縣市的都設成</span>
+          <select id="imp-city-all" aria-label="一次設定縣市"></select>
+          <button type="button" class="btn small ghost" id="btn-imp-city">套用</button>
+        </div>
+        <div id="imp-list"></div>
+        <div class="btns">
+          <button type="button" class="btn" id="btn-imp-add">加入勾選的地點</button>
+          <button type="button" class="btn ghost" id="btn-imp-cancel">取消</button>
+        </div>
+      </div>
+    </details>
+
     <div class="card">
       <p class="hint" id="wish-space-hint"></p>
       <div class="filters">
@@ -393,7 +431,7 @@
 </div>
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
-<script src="js/logic.js?v=37f75bde"></script>
-<script src="js/ui.js?v=3ee04668"></script>
+<script src="js/logic.js?v=91a784ed"></script>
+<script src="js/ui.js?v=e3d6de66"></script>
 </body>
 </html>
