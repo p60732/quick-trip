@@ -94,7 +94,7 @@
   // 帶著登入憑證呼叫後端
   function call(action, sp, extra) {
     var a = auth();
-    if (!a) return Promise.reject(new Error('請先到「旅伴」頁登入'));
+    if (!a) return Promise.reject(new Error('請先登入（按右上角的「登入」）'));
     var p = { token: a.token }; if (sp !== null) p.groupId = cloudId(sp);
     Object.keys(extra || {}).forEach(function (k) { p[k] = extra[k]; });
     return S.call(action, p).then(null, function (e) { if (/重新登入/.test(e.message)) expired(); throw e; });
@@ -279,6 +279,7 @@
   function show(view) {
     if (view === 'plan' && guest()) view = 'saved';   // 旅伴不開放 AI 規劃
     state.view = view;
+    closeAcctMenu();
     applyGuest();
     ['plan', 'wish', 'result', 'saved', 'group'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== view); });
     $('hero').classList.toggle('hidden', view !== 'plan');
@@ -294,8 +295,11 @@
   function renderSpaceBar() {
     var g = group(state.space);
     var a = auth();
-    $('space-name').textContent = g ? '👥 ' + g.name + ' · 你是 ' + g.nick : '📱 我自己' + (a ? ' · ' + a.name : '');
-    $('space-bar').classList.toggle('hidden', !groups().length && !S.configured());
+    $('space-name').textContent = g ? '👥 ' + g.name : '📱 我自己';
+    var bar = !groups().length && !S.configured() && !a;
+    $('space-bar').classList.toggle('hidden', bar);
+    $('brand-tag').classList.toggle('hidden', !bar);
+    renderSpaceList();
     applyGuest();
     renderAccount();
   }
@@ -1049,7 +1053,7 @@
     var w = $('storage-warn'), text = '';
     if (auth()) text = '';   // 登入後資料都在雲端，瀏覽器關掉也不會不見
     else if (!storageWorks()) text = '這個瀏覽器不讓網頁存資料（可能是無痕模式），存的行程關掉就會不見。請改用一般模式的 Safari 或 Chrome 打開。';
-    else if (inAppBrowser()) text = '你現在是在 App 裡的內建瀏覽器打開，這裡存的資料可能關掉就不見。到「旅伴」頁登入，資料就會存到你的帳號。';
+    else if (inAppBrowser()) text = '你現在是在 App 裡的內建瀏覽器打開，這裡存的資料可能關掉就不見。按右上角的「登入」，資料就會存到你的帳號。';
     w.textContent = text;
     w.classList.toggle('hidden', !text);
   }
@@ -1127,16 +1131,16 @@
   /* ================= 帳號 ================= */
   function renderAccount() {
     var a = auth();
-    // 沒登入：登入框放在最上面（按「先不登入」才收起來）；登入後改到「旅伴」頁管理帳號
+    // 沒登入：登入框放在最上面（按「先不登入」才收起來）；帳號、切換、改密碼、登出都在頂部列的面板
     $('login-card').classList.toggle('hidden', !!a || !!state.skipLogin || state.view === 'result');
     $('acct-card').classList.toggle('hidden', !a);
+    $('btn-menu-login').classList.toggle('hidden', !!a);
+    $('btn-logout').classList.toggle('hidden', !a);
     var chip = $('acct-chip');
     chip.textContent = a ? a.name : '登入';
     chip.className = 'acct-chip ' + (a ? 'in' : 'out');
-    chip.setAttribute('aria-label', a ? '帳號：' + a.name + '（開啟選單：帳號設定、登出）' : '登入');
-    $('acct-menu-name').textContent = a ? '已登入：' + a.name : '';
-    if (!a) closeAcctMenu();
-    if (a) $('acct-who').textContent = a.name;
+    chip.setAttribute('aria-label', a ? '帳號：' + a.name + '（切換群組、改密碼、登出）' : '登入');
+    $('acct-menu-name').textContent = a ? '已登入：' + a.name : '還沒登入：資料只存在這支手機';
     var legacy = !a && groups().some(function (g) { return g.legacy; });
     $('acct-legacy').classList.toggle('hidden', !legacy);
   }
@@ -1227,20 +1231,25 @@
     state.space = ''; store(KEY_SPACE, ''); state.lastSync = 0; state.gdFor = null;
     renderSpaceBar(); statusIdle(); refreshViews(); renderAccount();
   }
-  // 右上角：沒登入 → 帶到登入框；登入 → 開關選單
+  // 右上角：沒登入 → 帶到登入框；登入 → 開關面板（切換、改密碼、登出）
   function closeAcctMenu() {
-    $('acct-menu').classList.add('hidden'); $('acct-chip').setAttribute('aria-expanded', 'false');
+    $('acct-menu').classList.add('hidden'); $('acct-chip').setAttribute('aria-expanded', 'false'); $('space-bar').setAttribute('aria-expanded', 'false');
     var b = $('btn-logout'); b.removeAttribute('data-armed'); b.textContent = '登出';
   }
   function onAcctChip() {
-    if (!auth()) {
-      state.skipLogin = false; if (state.view === 'result') show('plan'); renderAccount();
-      window.scrollTo(0, 0); try { $('acct-name').focus(); } catch (e) {}
-      return;
-    }
-    var open = $('acct-menu').classList.contains('hidden');
-    if (!open) { closeAcctMenu(); return; }
-    $('acct-menu').classList.remove('hidden'); $('acct-chip').setAttribute('aria-expanded', 'true');
+    if (!auth()) { goLogin(); return; }
+    toggleAcctMenu();
+  }
+  function goLogin() {
+    closeAcctMenu();
+    state.skipLogin = false; if (state.view === 'result') show('plan'); renderAccount();
+    window.scrollTo(0, 0); try { $('acct-name').focus(); } catch (e) {}
+  }
+  function toggleAcctMenu() {
+    if (!$('acct-menu').classList.contains('hidden')) { closeAcctMenu(); return; }
+    renderSpaceList(); msg('msg-acct', '');
+    $('acct-menu').classList.remove('hidden');
+    $('acct-chip').setAttribute('aria-expanded', 'true'); $('space-bar').setAttribute('aria-expanded', 'true');
   }
   function onLogoutClick() {
     var b = $('btn-logout');
@@ -1263,10 +1272,8 @@
     }, function (e) { msg('msg-acct', e.message, 'err'); }).then(function () { b.disabled = false; });
   }
 
-  /* ================= 旅伴頁 ================= */
-  function renderGroups() {
-    $('group-off').classList.toggle('hidden', S.configured());
-    renderAccount();
+  // 頂部列面板裡的「現在用哪一份」
+  function renderSpaceList() {
     var a = auth();
     var list = $('space-list'); list.textContent = '';
     [{ groupId: '', name: '📱 我自己', note: a ? '存在你的帳號，換手機也看得到' : '只存在這支手機（登入後就能帶著走）' }].concat(groups().map(function (g) {
@@ -1275,9 +1282,17 @@
       var b = el('button', '', o.name); b.type = 'button';
       b.appendChild(el('small', '', o.note));
       b.setAttribute('aria-pressed', String(o.groupId === state.space));
-      b.addEventListener('click', function () { switchSpace(o.groupId); renderGroups(); });
+      b.addEventListener('click', function () { closeAcctMenu(); if (o.groupId !== state.space) switchSpace(o.groupId); if (state.view === 'group') renderGroups(); });
       list.appendChild(b);
     });
+  }
+
+  /* ================= 旅伴頁 ================= */
+  function renderGroups() {
+    $('group-off').classList.toggle('hidden', S.configured());
+    renderAccount();
+    var a = auth();
+    renderSpaceList();
     var g = group(state.space);
     if (g && g.legacy) g = null;
     $('group-detail').classList.toggle('hidden', !g);
@@ -1548,13 +1563,15 @@
     $('tab-wish').addEventListener('click', function () { show('wish'); });
     $('tab-saved').addEventListener('click', function () { show('saved'); });
     $('tab-group').addEventListener('click', function () { show('group'); });
-    $('space-bar').addEventListener('click', function () { show('group'); });
+    $('space-bar').addEventListener('click', toggleAcctMenu);
     $('btn-login').addEventListener('click', function () { onAuth('login'); });
     $('btn-signup').addEventListener('click', function () { onAuth('signup'); });
     $('acct-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') onAuth('login'); });
     $('btn-logout').addEventListener('click', onLogoutClick);
     $('acct-chip').addEventListener('click', onAcctChip);
-    $('btn-acct-settings').addEventListener('click', function () { closeAcctMenu(); show('group'); $('acct-card').scrollIntoView({ block: 'start' }); });
+    $('btn-menu-login').addEventListener('click', goLogin);
+    $('btn-acct-groups').addEventListener('click', function () { show('group'); });
+    $('acct-new').addEventListener('keydown', function (e) { if (e.key === 'Enter') onSetPass(); });
     document.addEventListener('click', function (e) { if (!$('acct-top').contains(e.target)) closeAcctMenu(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAcctMenu(); });
     $('btn-setpass').addEventListener('click', onSetPass);
