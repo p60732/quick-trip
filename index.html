@@ -6,42 +6,56 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=28621cac">
+<link rel="stylesheet" href="css/style.css?v=7ec24628">
 </head>
 <body>
 <div class="wrap">
   <div class="appbar" id="acct-top">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">走</span>
-      <div class="brand-txt"><b>說走就走小旅行</b><small>三分鐘排好你的行程</small></div>
-    </div>
-    <div class="acct-wrap">
-      <button type="button" class="acct-chip out" id="acct-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu">登入</button>
-      <div class="acct-menu hidden" id="acct-menu" role="menu">
-        <div class="acct-menu-name" id="acct-menu-name"></div>
-        <button type="button" role="menuitem" id="btn-acct-settings">帳號設定（改密碼）</button>
-        <button type="button" role="menuitem" class="danger" id="btn-logout">登出</button>
+    <div class="appbar-row">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">走</span>
+        <div class="brand-txt"><b>說走就走小旅行</b>
+          <small id="brand-tag">三分鐘排好你的行程</small>
+          <button type="button" class="space-line hidden" id="space-bar" aria-label="現在用哪一份（按一下切換）" aria-controls="acct-menu"><span class="space-name" id="space-name"></span><span class="space-status" id="space-status"></span></button>
+        </div>
+      </div>
+      <div class="acct-wrap">
+        <button type="button" class="acct-chip out" id="acct-chip" aria-haspopup="dialog" aria-expanded="false" aria-controls="acct-menu">登入</button>
+      </div>
+      <div class="acct-menu hidden" id="acct-menu" role="dialog" aria-label="帳號與切換">
+        <div class="menu-top">
+          <div class="acct-menu-name" id="acct-menu-name"></div>
+          <button type="button" class="menu-logout hidden" id="btn-logout">登出</button>
+        </div>
+        <button type="button" class="menu-item hidden" id="btn-menu-login">登入／建立帳號</button>
+        <div class="menu-sec">
+          <div class="menu-h">現在用哪一份</div>
+          <div id="space-list" class="space-list"></div>
+          <button type="button" class="menu-item link" id="btn-acct-groups">建立群組、邀請旅伴 →</button>
+        </div>
+        <div class="menu-sec" id="acct-card">
+          <details class="menu-more" id="acct-in">
+            <summary>改密碼</summary>
+            <label class="f"><span>目前的密碼</span><input type="password" id="acct-old" maxlength="64" autocomplete="current-password"></label>
+            <label class="f"><span>新密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-new" maxlength="64" autocomplete="new-password"></label>
+            <div class="btns"><button type="button" class="btn small" id="btn-setpass">更新密碼</button></div>
+          </details>
+          <div class="msg" id="msg-acct" role="status"></div>
+        </div>
       </div>
     </div>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
+      <button type="button" role="tab" id="tab-wish" aria-selected="false">願望清單 <span id="wish-count"></span></button>
+      <button type="button" role="tab" id="tab-saved" aria-selected="false">行程 <span id="saved-count"></span></button>
+      <button type="button" role="tab" id="tab-group" aria-selected="false">旅伴</button>
+    </nav>
   </div>
   <header class="hero" id="hero">
     <span class="eyebrow-pill"><i class="live"></i>說走就走 · 三分鐘排好你的行程</span>
     <h1>給一個起點，<br><em>剩下的</em>交給說走就走</h1>
     <p>輸入出發地與一個想去的點，選自駕或公共交通，把附近可吃可玩排成一整段行程。</p>
   </header>
-
-  <nav class="tabs" role="tablist">
-    <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
-    <button type="button" role="tab" id="tab-wish" aria-selected="false">願望清單 <span id="wish-count"></span></button>
-    <button type="button" role="tab" id="tab-saved" aria-selected="false">行程 <span id="saved-count"></span></button>
-    <button type="button" role="tab" id="tab-group" aria-selected="false">旅伴</button>
-  </nav>
-
-  <button type="button" class="space-bar" id="space-bar" aria-label="切換共用群組">
-    <span class="space-name" id="space-name"></span>
-    <span class="space-status" id="space-status"></span>
-    <span class="space-switch">切換</span>
-  </button>
 
   <div class="card glass" id="login-card">
     <h2 class="step-h">登入</h2>
@@ -298,27 +312,7 @@
       <div class="msg" id="msg-join" role="status"></div>
     </div>
 
-    <div class="card hidden" id="acct-card">
-      <h2 class="step-h">帳號</h2>
-      <div id="acct-in">
-        <p class="hint">已登入：<b id="acct-who"></b>。資料都存在你的帳號，換手機用同一組名字和密碼登入就好。要登出按右上角的名字。</p>
-        <details class="more">
-          <summary>改密碼</summary>
-          <div class="row stack">
-            <label class="f"><span>目前的密碼</span><input type="password" id="acct-old" maxlength="64" autocomplete="current-password"></label>
-            <label class="f"><span>新密碼</span><input type="password" id="acct-new" maxlength="64" autocomplete="new-password"></label>
-          </div>
-          <div class="btns"><button type="button" class="btn small" id="btn-setpass">更新密碼</button></div>
-        </details>
-      </div>
-      <div class="msg" id="msg-acct" role="status"></div>
-    </div>
-
-    <div class="card">
-      <h2 class="step-h">現在用哪一份</h2>
-      <p class="hint">「我自己」是只有你看得到的清單和行程；選群組就是跟旅伴共用，大家改的會同步過來。</p>
-      <div id="space-list" class="space-list"></div>
-    </div>
+    <p class="hint2 group-tip" id="group-tip">要切換「我自己」或其他群組、改密碼、登出：按右上角你的名字。</p>
 
     <div class="card hidden" id="group-detail">
       <h2 class="step-h" id="gd-name"></h2>
@@ -379,6 +373,6 @@
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
 <script src="js/logic.js?v=1d24e941"></script>
-<script src="js/ui.js?v=8eede1ab"></script>
+<script src="js/ui.js?v=6582ed00"></script>
 </body>
 </html>
