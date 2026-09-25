@@ -357,7 +357,13 @@ body.need-login #view-result, body.need-login #view-saved, body.need-login #view
   .appbar nav.tabs button { font-size: 13px; padding: 8px 4px; }
 }
 /* 願望編輯中 */
-#wish-form.editing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; scroll-margin-top: 150px; }
+.wish.editing { border: 1px solid var(--accent); border-radius: 16px; padding: 12px 14px; margin: 8px 0; background: var(--glass-2); }
+.wish-edit { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line-2); }
+.wish-edit .f { margin-bottom: 12px; }
+.wish-edit input, .wish-edit select { min-height: 44px; }
+.wish-edit .btns { margin-top: 4px; }
+.wish.just-saved { border-color: var(--ok); }
+.wish { scroll-margin-top: 150px; }
 #wish-form { scroll-margin-top: 150px; }
 #revise-req { min-height: 72px; margin-top: 8px; }
 #revise-card .f { margin-bottom: 10px; }
