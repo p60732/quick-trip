@@ -271,7 +271,7 @@ ul.plain li + li { margin-top: 4px; }
 }
 .wish .actions a, .wish .actions button.go { color: var(--accent); }
 .type { display: inline-block; font-size: 12px; font-weight: 700; color: var(--c); margin-right: 6px; }
-.kind-eat { --c: var(--t-food); } .kind-play { --c: var(--t-sight); }
+.kind-eat { --c: var(--t-food); } .kind-drink { --c: var(--t-lodging); } .kind-play { --c: var(--t-sight); }
 
 /* 帳號 */
 .warn-text { color: var(--warn-ink); }
