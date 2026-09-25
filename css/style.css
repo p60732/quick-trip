@@ -359,6 +359,8 @@ body.need-login #view-result, body.need-login #view-saved, body.need-login #view
 /* 願望編輯中 */
 #wish-form.editing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; scroll-margin-top: 150px; }
 #wish-form { scroll-margin-top: 150px; }
+#revise-req { min-height: 72px; margin-top: 8px; }
+#revise-card .f { margin-bottom: 10px; }
 #msg-top:empty { display: none; }
 
 /* 成員名單 */
