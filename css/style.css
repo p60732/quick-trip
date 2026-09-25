@@ -356,9 +356,9 @@ body.need-login #view-result, body.need-login #view-saved, body.need-login #view
   .acct-chip { padding: 8px 12px; max-width: 32vw; }
   .appbar nav.tabs button { font-size: 13px; padding: 8px 4px; }
 }
-/* 願望補綁地圖 */
-.bind-map { display: flex; gap: 8px; margin-top: 10px; }
-.bind-map input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; }
+/* 願望編輯中 */
+#wish-form.editing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; scroll-margin-top: 150px; }
+#wish-form { scroll-margin-top: 150px; }
 #msg-top:empty { display: none; }
 
 /* 成員名單 */
