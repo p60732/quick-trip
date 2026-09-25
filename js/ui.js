@@ -228,7 +228,7 @@
   function expired() {
     if (!auth()) return;
     logoutLocal();
-    state.skipLogin = false; renderAccount();
+    renderAccount();
     msg('msg-login', '登入已過期或在別的地方改過密碼，請重新登入。', 'err');
   }
   // 別人改了資料：重畫目前看到的畫面（正在編輯行程時不動，免得打字打到一半被洗掉）
@@ -296,7 +296,7 @@
     var g = group(state.space);
     var a = auth();
     $('space-name').textContent = g ? '👥 ' + g.name : '📱 我自己';
-    var bar = !groups().length && !S.configured() && !a;
+    var bar = (!groups().length && !S.configured() && !a) || locked();
     $('space-bar').classList.toggle('hidden', bar);
     $('brand-tag').classList.toggle('hidden', !bar);
     renderSpaceList();
@@ -1129,10 +1129,14 @@
   }
 
   /* ================= 帳號 ================= */
+  function locked() { return S.configured() && !auth(); }
   function renderAccount() {
     var a = auth();
     // 沒登入：登入框放在最上面（按「先不登入」才收起來）；帳號、切換、改密碼、登出都在頂部列的面板
-    $('login-card').classList.toggle('hidden', !!a || !!state.skipLogin || state.view === 'result');
+    // 後端有設定時，沒登入就只看得到登入框，其他功能都鎖住
+    document.body.classList.toggle('need-login', locked());
+    $('login-card').classList.toggle('hidden', !!a);
+    if (a) $('login-invite').classList.add('hidden');
     $('acct-card').classList.toggle('hidden', !a);
     $('btn-menu-login').classList.toggle('hidden', !!a);
     $('btn-logout').classList.toggle('hidden', !a);
@@ -1242,7 +1246,7 @@
   }
   function goLogin() {
     closeAcctMenu();
-    state.skipLogin = false; if (state.view === 'result') show('plan'); renderAccount();
+    if (state.view === 'result') show('plan'); renderAccount();
     window.scrollTo(0, 0); try { $('acct-name').focus(); } catch (e) {}
   }
   function toggleAcctMenu() {
@@ -1397,15 +1401,16 @@
     if (!auth()) {
       state.pendingJoin = inv;
       show('group');
-      $('join-hint').textContent = '正在確認邀請…';
+      var hint = function (t) { $('join-hint').textContent = t; $('login-invite').textContent = t; $('login-invite').classList.toggle('hidden', !t); };
+      hint('正在確認邀請…');
       S.call('previewGroup', { groupId: inv.groupId, key: inv.key }).then(function (d) {
         if (state.pendingJoin !== inv) return;
-        $('join-hint').textContent = '「' + d.name + '」邀請你一起規劃行程。先登入，第一次用就建立帳號（名字＋密碼），之後換手機也不會搞丟。';
+        hint('「' + d.name + '」邀請你一起規劃行程。先登入，第一次用就建立帳號（名字＋密碼），登入後會自動加入。');
       }, function (e) {
         if (state.pendingJoin !== inv) return;
-        $('join-hint').textContent = ''; msg('msg-join', e.message, 'err');
+        hint(''); msg('msg-join', e.message, 'err'); msg('msg-login', e.message, 'err');
       });
-      state.skipLogin = false; renderAccount();
+      renderAccount();
       try { $('acct-name').focus(); } catch (e) {}
       return;
     }
@@ -1575,8 +1580,7 @@
     document.addEventListener('click', function (e) { if (!$('acct-top').contains(e.target)) closeAcctMenu(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAcctMenu(); });
     $('btn-setpass').addEventListener('click', onSetPass);
-    $('btn-join-login').addEventListener('click', function () { state.skipLogin = false; renderAccount(); window.scrollTo(0, 0); $('acct-name').focus(); });
-    $('btn-skip-login').addEventListener('click', function () { state.skipLogin = true; renderAccount(); });
+    $('btn-join-login').addEventListener('click', goLogin);
     $('btn-ng').addEventListener('click', onCreateGroup);
     $('btn-join').addEventListener('click', onJoin);
     $('btn-join-cancel').addEventListener('click', function () { state.pendingJoin = null; renderGroups(); });
