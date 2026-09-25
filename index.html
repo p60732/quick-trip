@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f1522">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=8dfb1467">
+<link rel="stylesheet" href="css/style.css?v=4b4b212e">
 </head>
 <body>
 <div class="wrap">
@@ -201,7 +201,7 @@
       </details>
       <div id="card-paste" class="locked">
         <textarea id="paste-in" placeholder="把 Claude 的整段回答貼在這裡" aria-label="貼上 Claude 的回答"></textarea>
-        <div class="btns mt"><button type="button" class="btn" id="btn-parse">排成行程</button></div>
+        <div class="btns mt"><button type="button" class="btn" id="btn-parse">排成行程</button><button type="button" class="btn ghost" id="btn-paste-clear">清空</button></div>
         <div class="msg" id="msg-parse" role="status"></div>
       </div>
     </div>
@@ -271,6 +271,27 @@
       <button type="button" class="btn small ghost" id="btn-print">列印／存 PDF</button>
     </div>
     <div class="msg no-print mb" id="msg-result" role="status"></div>
+    <div class="btns no-print hidden" id="revise-undo-bar"><button type="button" class="btn small ghost" id="btn-revise-undo">換回原本的行程</button></div>
+    <div class="card glass no-print hidden" id="revise-card">
+      <h2 class="card-h">請 AI 重新排</h2>
+      <label class="f"><span>想怎麼改？ <small>（選填，例：下午改去海邊、午餐換素食；不寫就照同樣條件重排一版）</small></span>
+        <textarea id="revise-req" maxlength="500" rows="2" placeholder="例：第二站換成室內的，晚餐想吃火鍋"></textarea>
+      </label>
+      <div class="btns">
+        <button type="button" class="btn" id="btn-revise-open">複製並開啟 Claude</button>
+        <button type="button" class="btn ghost" id="btn-revise-copy">只複製</button>
+      </div>
+      <div class="msg" id="msg-revise" role="status"></div>
+      <details class="more slim" id="revise-box"><summary>看提示詞</summary>
+        <textarea id="revise-prompt" readonly aria-label="修改用的提示詞"></textarea>
+      </details>
+      <textarea id="revise-in" placeholder="把 Claude 的新回答整段貼在這裡" aria-label="貼上 Claude 的新回答"></textarea>
+      <div class="btns mt">
+        <button type="button" class="btn" id="btn-revise-apply">換成新行程</button>
+        <button type="button" class="btn ghost" id="btn-revise-clear">清空</button>
+      </div>
+      <div class="msg" id="msg-revise-apply" role="status"></div>
+    </div>
     <div id="result"></div>
   </section>
 
@@ -372,7 +393,7 @@
 </div>
 <script src="js/config.js?v=da7d879b"></script>
 <script src="js/sync.js?v=ac706b73"></script>
-<script src="js/logic.js?v=1d24e941"></script>
-<script src="js/ui.js?v=aec28def"></script>
+<script src="js/logic.js?v=37f75bde"></script>
+<script src="js/ui.js?v=3ee04668"></script>
 </body>
 </html>
