@@ -361,6 +361,28 @@ body.need-login #view-result, body.need-login #view-saved, body.need-login #view
 #wish-form { scroll-margin-top: 150px; }
 #revise-req { min-height: 72px; margin-top: 8px; }
 #revise-card .f { margin-bottom: 10px; }
+/* 可收合的說明卡（分享鍵、匯入） */
+details.fold > summary { list-style: none; cursor: pointer; font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 8px; min-height: 28px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "＋"; color: var(--accent); }
+details.fold[open] > summary::before { content: "－"; }
+details.fold[open] > summary { margin-bottom: 12px; }
+.copy-row { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; }
+.copy-row input { flex: 1; min-width: 0; font-size: 13px; }
+#imp-file { display: block; width: 100%; margin: 6px 0 10px; color: var(--muted); font-size: 14px; }
+.imp-bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; font-size: 14px; color: var(--muted); }
+.imp-bulk select { width: auto; flex: 1; min-width: 120px; }
+#imp-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; margin-bottom: 12px; }
+.imp-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass-2); }
+.imp-row input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.imp-row .grow { flex: 1; min-width: 0; }
+.imp-row .name { font-weight: 700; }
+.imp-row .meta { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-row.dup .name { color: var(--muted); }
+.imp-ctl { display: flex; gap: 8px; margin-top: 8px; }
+.imp-ctl select { flex: 1; min-width: 0; min-height: 40px; padding: 6px 10px; font-size: 14px; }
+.imp-ctl select.need { border-color: var(--err); }
+.kind-btn { flex: none; min-width: 64px; }
 #msg-top:empty { display: none; }
 
 /* 成員名單 */
