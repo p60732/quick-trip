@@ -197,7 +197,7 @@
       renderSpaceBar();
     }, function (e) {
       state.syncing = false;
-      if (sp && /不在這個群組|被移出|已經離開|找不到這個群組/.test(e.message)) {   // 已經不在群組裡：從清單拿掉
+      if (sp && /不在這個群組|被移出|已經離開|找不到這個群組|已經被建立者刪除/.test(e.message)) {   // 已經不在群組裡：從清單拿掉
         dropGroup(sp);
         msg('msg-ng', '「' + spaceName(sp) + '」：' + e.message, 'err');
         setStatus(e.message, true);
@@ -1575,9 +1575,12 @@
       $('gd-link').value = g.inviteKey ? L.inviteUrl(location.href, g.groupId, g.inviteKey) : owner ? '（按下面的「重設邀請連結」產生新的連結）' : '（請建立者傳邀請連結給你）';
       $('btn-gd-share').classList.toggle('hidden', !navigator.share || !g.inviteKey);
       $('gd-owner').classList.toggle('hidden', !owner);
+      $('gd-del-name').textContent = g.name;
       // 同步會每 20 秒重畫這一頁：正在打的名稱／暱稱不要被舊值蓋掉，換群組時才重填
       var fresh = state.gdFor !== g.groupId;
       state.gdFor = g.groupId;
+      if (fresh) { $('gd-del-input').value = ''; $('gd-del-box').open = false; }
+      $('btn-gd-del').disabled = $('gd-del-input').value.trim() !== g.name;
       ['gd-rename', 'gd-nick'].forEach(function (id) {
         var inp = $(id);
         if (fresh || inp.getAttribute('data-dirty') !== '1') { inp.value = id === 'gd-rename' ? g.name : g.nick; inp.removeAttribute('data-dirty'); }
@@ -1766,6 +1769,19 @@
       msg('msg-ng', '已離開「' + g.name + '」。', 'ok');
     }, function (e) { msg('msg-gd', e.message, 'err'); }).then(function () { b.disabled = false; });
   }
+  // 刪除群組（建立者）：打對名稱才按得下去；刪完從清單拿掉、回到「我自己」
+  function onDeleteGroup() {
+    var g = group(state.space), b = $('btn-gd-del');
+    if (!g || g.role !== 'owner') return;
+    if ($('gd-del-input').value.trim() !== g.name) { msg('msg-gd', '群組名稱打得不一樣。', 'err'); return; }
+    b.disabled = true; msg('msg-gd', '刪除中…');
+    call('deleteGroup', g.groupId, { name: g.name }).then(function () {
+      state.gdFor = null; $('gd-del-input').value = ''; $('gd-del-box').open = false;
+      msg('msg-gd', '');
+      dropGroup(g.groupId);
+      msg('msg-ng', '已刪除「' + g.name + '」。', 'ok');
+    }, function (e) { msg('msg-gd', e.message, 'err'); b.disabled = false; });
+  }
   function onImportWishes() {
     var sp = state.space; if (!sp) return;
     var have = {}; wishesIn(sp).forEach(function (w) { have[w.id] = true; });
@@ -1874,6 +1890,8 @@
     $('btn-gd-nick').addEventListener('click', onNick);
     $('btn-gd-leave').addEventListener('click', onLeave);
     $('btn-gd-import').addEventListener('click', onImportWishes);
+    $('gd-del-input').addEventListener('input', function () { var g = group(state.space); $('btn-gd-del').disabled = !g || $('gd-del-input').value.trim() !== g.name; });
+    $('btn-gd-del').addEventListener('click', onDeleteGroup);
     syncWishScope();
     renderSpaceBar(); statusIdle();
     renderPicks();
