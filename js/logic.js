@@ -361,12 +361,116 @@
     var m = /https:\/\/[^\s<>"']+/i.exec(t);
     if (!m || !isGmapUrl(m[0])) return null;
     var url = m[0].replace(/[)\]。，,]+$/, '');
-    var name = clean_(t.slice(0, m.index).replace(/[\r\n]+/g, ' ')).replace(/[：:\-－|｜]+$/, '').trim();
-    if (!name) {   // 完整網址裡的 /maps/place/店名/
-      var pm = /\/maps\/place\/([^\/?#]+)/.exec(url);
-      if (pm) { try { name = clean_(decodeURIComponent(pm[1].replace(/\+/g, ' '))); } catch (e) { name = ''; } }
+    // 連結前面的文字：第一行是店名，其餘（或「·」後面）當地址，用來猜縣市
+    var lines = t.slice(0, m.index).split(/[\r\n]+/).map(function (x) { return clean_(x); }).filter(Boolean);
+    var first = lines.shift() || '', addr = lines.join(' ');
+    var dot = first.split(/\s*[·•]\s*/);
+    if (dot.length > 1) { first = dot.shift(); addr = (dot.join(' ') + ' ' + addr).trim(); }
+    var name = first.replace(/[：:\-－|｜]+$/, '').trim();
+    if (!name) name = placeFromUrl_(url);
+    return { name: name.slice(0, 100), mapUrl: url.slice(0, 500), address: addr.slice(0, 200) };
+  }
+  // 完整網址裡的 /maps/place/店名/
+  function placeFromUrl_(url) {
+    var pm = /\/maps\/(?:place|search)\/([^\/?#]+)/.exec(String(url || ''));
+    if (!pm) return '';
+    try { return clean_(decodeURIComponent(pm[1].replace(/\+/g, ' '))); } catch (e) { return ''; }
+  }
+
+  /* ---------- 從 iPhone 分享鍵帶進來的內容（#add=…） ---------- */
+  // 回傳 {name, mapUrl, url, city, note} 或 null；Google 地圖連結放 mapUrl，其他連結（IG、文章）放 url
+  function parseAddLink(hash) {
+    var m = /#add=([^#]*)/.exec(String(hash || ''));
+    if (!m) return null;
+    var text;
+    try { text = decodeURIComponent(m[1].replace(/\+/g, '%20')); } catch (e) { return null; }
+    return shareToWish(text.slice(0, 2000));
+  }
+  function shareToWish(text) {
+    var t = String(text || '');
+    if (!clean_(t)) return null;
+    var g = parseMapShare(t);
+    if (g) return { name: g.name, mapUrl: g.mapUrl, url: '', city: guessCity(g.address + ' ' + g.name), note: '' };
+    var u = /https?:\/\/[^\s<>"']+/i.exec(t);
+    var before = clean_((u ? t.slice(0, u.index) : t).split(/[\r\n]+/)[0] || '');
+    return { name: before.slice(0, 100), mapUrl: '', url: u ? u[0].slice(0, 500) : '', city: guessCity(t), note: '' };
+  }
+
+  /* ---------- Google 匯出（Takeout）的已儲存地點 ---------- */
+  function parseCsv_(text) {
+    var rows = [], row = [], cur = '', q = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cur); cur = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); rows.push(row); row = []; cur = '';
+      } else cur += ch;
     }
-    return { name: name.slice(0, 100), mapUrl: url.slice(0, 500) };
+    if (cur || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+  // 支援：已儲存清單 CSV（Title, Note, URL…）、已加標籤的地點 / 已儲存的地點 JSON（GeoJSON）
+  // 回傳 {ok, places:[{name, address, mapUrl, lat, lng, country, note}]} 或 {ok:false, error}
+  function parseTakeout(text) {
+    var t = String(text || '').replace(/^\uFEFF/, '');
+    if (t.length > 3000000) return { ok: false, error: '檔案太大了' };
+    var out = [];
+    if (/^\s*[\[{]/.test(t)) {
+      var d; try { d = JSON.parse(t); } catch (e) { return { ok: false, error: '這個 JSON 檔讀不懂' }; }
+      var feats = d && Array.isArray(d.features) ? d.features : Array.isArray(d) ? d : null;
+      if (!feats) return { ok: false, error: '不是 Google 匯出的地點檔（要「已加標籤的地點」或「已儲存的地點」）' };
+      feats.forEach(function (f) {
+        if (!f || typeof f !== 'object') return;
+        var pr = f.properties && typeof f.properties === 'object' ? f.properties : {};
+        var loc = pr.location || pr.Location || {};
+        var c = f.geometry && Array.isArray(f.geometry.coordinates) ? f.geometry.coordinates : [];
+        var lng = Number(c[0]), lat = Number(c[1]);
+        var ok = isFinite(lat) && isFinite(lng) && !(lat === 0 && lng === 0) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        out.push({
+          name: clean_(pr.name || loc.name || pr.Title || loc['Business Name'] || ''),
+          address: clean_(pr.address || loc.address || loc.Address || ''),
+          mapUrl: clean_(pr.google_maps_url || pr['Google Maps URL'] || ''),
+          lat: ok ? lat : null, lng: ok ? lng : null,
+          country: clean_(loc.country_code || loc['Country Code'] || ''),
+          note: clean_(pr.Comment || pr.comment || pr.Note || '')
+        });
+      });
+    } else {
+      var rows = parseCsv_(t);
+      var head = (rows.shift() || []).map(function (h) { return clean_(h).toLowerCase(); });
+      var col = function (names) { for (var i = 0; i < head.length; i++) if (names.indexOf(head[i]) !== -1) return i; return -1; };
+      var ti = col(['title', '標題', '名稱', 'name']), ni = col(['note', '附註', '備註', '筆記']), ui = col(['url', '網址', '連結']), ci = col(['comment', '留言', '評論']);
+      if (ti === -1 && ui === -1) return { ok: false, error: '不是 Google 匯出的清單檔（第一列要有 Title、URL）' };
+      rows.forEach(function (r) {
+        var g = function (i) { return i === -1 ? '' : clean_(r[i] || ''); };
+        if (!g(ti) && !g(ui)) return;
+        out.push({ name: g(ti), address: '', mapUrl: g(ui), lat: null, lng: null, country: '', note: [g(ni), g(ci)].filter(Boolean).join('；') });
+      });
+    }
+    out = out.filter(function (x) { return x.name || x.address || x.mapUrl || x.lat !== null; });
+    if (!out.length) return { ok: false, error: '檔案裡沒有地點' };
+    return { ok: true, places: out.slice(0, LIMIT.wishes) };
+  }
+  var EAT_RE_ = /餐|食|麵|飯|粥|咖啡|café|cafe|coffee|茶|飲|甜|冰|豆花|燒|烤|鍋|肉|魚|蝦|蟹|雞|鴨|牛|豬|羊|滷|炸|酒|吧|bar|小吃|早午餐|早餐|便當|壽司|拉麵|丼|披薩|pizza|漢堡|burger|麵包|烘焙|蛋糕|甜點|bistro|restaurant|kitchen|廚房|食堂|料理|美食|夜市/i;
+  function guessKind(name) { return EAT_RE_.test(String(name || '')) ? 'eat' : 'play'; }
+  // 把一個匯出的地點轉成願望草稿（縣市猜不到就留空，讓使用者選）
+  function placeToWish(pl) {
+    var p = pl && typeof pl === 'object' ? pl : {};
+    var name = clean_(p.name) || placeFromUrl_(p.mapUrl) || clean_(p.address).slice(0, 40);
+    var addr = clean_(p.address);
+    var abroad = !!p.country && String(p.country).toUpperCase() !== 'TW';
+    var city = abroad ? '' : guessCity(addr + ' ' + name);
+    if (abroad) { var parts = addr.split(/[,，]/).map(clean_).filter(Boolean); city = parts.slice(-2).join(' ').slice(0, 60) || String(p.country).toUpperCase(); }
+    var raw = clean_(p.mapUrl).replace(/^http:\/\//i, 'https://');
+    var mapUrl = isGmapUrl(raw) ? raw
+      : p.lat !== null && p.lat !== undefined && isFinite(p.lat) ? 'https://www.google.com/maps/search/?api=1&query=' + Number(p.lat).toFixed(6) + ',' + Number(p.lng).toFixed(6)
+      : name ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((name + ' ' + addr).trim()) : '';
+    return { name: name.slice(0, 100), scope: abroad ? 'abroad' : 'domestic', kind: guessKind(name), city: city, note: clean_(p.note).slice(0, 200), url: '', mapUrl: mapUrl.slice(0, 500) };
   }
 
   /* ---------- 願望清單 ---------- */
@@ -715,7 +819,7 @@
     TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, TW_REGIONS: TW_REGIONS, TW_CITIES: TW_CITIES,
     TRANSPORTS: TRANSPORTS, reorderStop: reorderStop, cleanMembers: cleanMembers, memberLabel: memberLabel, isGuestDevice: isGuestDevice, ORIGIN_TYPES: ORIGIN_TYPES, STATIONS: STATIONS,
     WISH_SCOPE: WISH_SCOPE, WISH_KIND: WISH_KIND, WISH_MAX: LIMIT.wishes,
-    isTwCity: isTwCity, guessCity: guessCity, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
+    isTwCity: isTwCity, guessCity: guessCity, parseAddLink: parseAddLink, shareToWish: shareToWish, parseTakeout: parseTakeout, placeToWish: placeToWish, guessKind: guessKind, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
     normOrigin: normOrigin, originText: originText, originPlace: originPlace, destText: destText,
     nextSaturday: nextSaturday, addDays: addDays, dayLabel: dayLabel,
     validateForm: validateForm, buildPrompt: buildPrompt, buildRevisePrompt: buildRevisePrompt, parsePlan: parsePlan,

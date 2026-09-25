@@ -569,6 +569,8 @@
     $('w-map').value = r.mapUrl;
     if (fromName) $('w-name').value = r.name;
     else if (r.name && !$('w-name').value.trim()) $('w-name').value = r.name;
+    var gc = L.guessCity(r.address + ' ' + r.name);
+    if (gc && !$('w-city').value && segValue('w-scope') === 'domestic') $('w-city').value = gc;
     msg('msg-wish', r.name || $('w-name').value.trim() ? '已帶入 Google 地圖的地點，選好縣市就能加入。' : '已放入地圖連結，請填上店名。', 'ok');
   }
   function clearWishForm() {
@@ -671,6 +673,151 @@
     row.appendChild(act);
     return row;
   }
+  /* ---------- iPhone 分享鍵帶進來（#add=…）→ 填好上面的表單 ---------- */
+  function applyAdd(a) {
+    stopEditWish(); clearWishForm();
+    setSeg('w-scope', 'domestic'); setSeg('w-kind', L.guessKind(a.name)); syncWishScope();
+    $('w-name').value = a.name || ''; $('w-map').value = a.mapUrl || ''; $('w-url').value = a.url || '';
+    if (a.city) $('w-city').value = a.city;
+    show('wish');
+    var need = [!a.name ? '店名' : '', !a.city ? '縣市' : ''].filter(Boolean);
+    msg('msg-wish', '已帶入分享的' + (a.mapUrl ? '地點' : '連結') + (need.length ? '，補上' + need.join('和') + '後' : '，確認一下') + '按「加入願望清單」。', 'ok');
+    try { (!a.name ? $('w-name') : !a.city ? $('w-city') : $('btn-wish-add')).focus(); } catch (e) {}
+  }
+  function takeAdd() {
+    var a = L.parseAddLink(location.hash);
+    if (!a) return;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if (locked()) { state.pendingAdd = a; msg('msg-login', '登入後會把分享的地點放進願望清單。', 'ok'); return; }
+    applyAdd(a);
+  }
+  function onShareCopy() {
+    copyText($('share-prefix').value, $('share-prefix')).then(function (ok) {
+      msg('msg-share', ok ? '已複製，貼到捷徑的「文字」動作裡。' : '請長按上面的網址全選複製。', ok ? 'ok' : 'err');
+    });
+  }
+
+  /* ---------- Google 匯出（Takeout）批次匯入 ---------- */
+  function wishKey(w) { return String(w.name).toLowerCase() + '|' + w.city; }
+  function onImpFiles() {
+    var files = [].slice.call($('imp-file').files || []);
+    if (!files.length) return;
+    msg('msg-imp', '讀取中…');
+    Promise.all(files.map(function (f) {
+      return f.size > 3000000 ? Promise.resolve({ ok: false, error: f.name + ' 太大了' }) : f.text().then(function (t) {
+        var r = L.parseTakeout(t);
+        if (!r.ok) r.error = f.name + '：' + r.error;
+        return r;
+      });
+    })).then(function (rs) {
+      var errs = rs.filter(function (r) { return !r.ok; }).map(function (r) { return r.error; });
+      var have = {}, names = {}, mine = wishesIn('');
+      mine.forEach(function (w) { have[wishKey(w)] = 1; names[String(w.name).toLowerCase()] = 1; if (w.mapUrl) have[w.mapUrl] = 1; });
+      var seen = {}, rows = [];
+      rs.forEach(function (r) {
+        (r.places || []).forEach(function (pl) {
+          var d = L.placeToWish(pl);
+          if (!d.name) return;
+          var k = d.mapUrl || wishKey(d);
+          if (seen[k]) return; seen[k] = 1;
+          var dup = !!(have[d.mapUrl] || have[wishKey(d)] || (!d.city && names[String(d.name).toLowerCase()]));   // 沒縣市的：同名就當成已經有了
+          rows.push({ d: d, on: !dup, dup: dup, addr: pl.address || '' });
+        });
+      });
+      state.imp = rows.slice(0, L.WISH_MAX);
+      renderImp();
+      var n = rows.filter(function (x) { return !x.dup; }).length;
+      msg('msg-imp', (rows.length ? '找到 ' + rows.length + ' 個地點' + (rows.length - n ? '（' + (rows.length - n) + ' 個已經在清單裡，先不勾）' : '') + '，確認縣市和吃的／玩的再加入。' : '沒有找到地點。') + (errs.length ? ' ' + errs.join('；') : ''), rows.length ? 'ok' : 'err');
+    }, function (e) { msg('msg-imp', '讀不到檔案：' + e.message, 'err'); });
+  }
+  function renderImp() {
+    var rows = state.imp || [], box = $('imp-list');
+    box.textContent = '';
+    $('imp-preview').classList.toggle('hidden', !rows.length);
+    rows.forEach(function (x) {
+      var row = el('div', 'imp-row' + (x.dup ? ' dup' : ''));
+      var cb = el('input'); cb.type = 'checkbox'; cb.checked = x.on; cb.setAttribute('aria-label', '加入 ' + x.d.name);
+      cb.addEventListener('change', function () { x.on = cb.checked; updImpBtn(); });
+      row.appendChild(cb);
+      var mid = el('div', 'grow');
+      mid.appendChild(el('div', 'name', x.d.name));
+      var meta = [x.dup ? '已經在清單裡' : '', x.addr, x.d.note].filter(Boolean).join(' · ');
+      if (meta) mid.appendChild(el('div', 'meta', meta));
+      var ctl = el('div', 'imp-ctl');
+      var sel = document.createElement('select'); sel.setAttribute('aria-label', x.d.name + ' 的縣市');
+      if (x.d.scope === 'abroad') { var oa = el('option', '', '國外：' + x.d.city); oa.value = '__abroad'; sel.appendChild(oa); }
+      fillCityOptions(sel, x.d.scope === 'abroad' ? '' : '選縣市');
+      sel.value = x.d.scope === 'abroad' ? '__abroad' : x.d.city;
+      sel.classList.toggle('need', x.d.scope !== 'abroad' && !x.d.city);
+      sel.addEventListener('change', function () {
+        if (sel.value !== '__abroad') { x.d.scope = 'domestic'; x.d.city = sel.value; }
+        sel.classList.toggle('need', sel.value === '');
+      });
+      ctl.appendChild(sel);
+      var kb = button(L.WISH_KIND[x.d.kind], 'btn small ghost kind-btn', function () { x.d.kind = x.d.kind === 'eat' ? 'play' : 'eat'; kb.textContent = L.WISH_KIND[x.d.kind]; });
+      kb.setAttribute('aria-label', '切換吃的／玩的');
+      ctl.appendChild(kb);
+      mid.appendChild(ctl);
+      row.appendChild(mid);
+      box.appendChild(row);
+    });
+    updImpBtn();
+  }
+  function fillCityOptions(sel, placeholder) {
+    if (placeholder !== null) { var o0 = el('option', '', placeholder); o0.value = ''; sel.appendChild(o0); }
+    L.TW_REGIONS.forEach(function (r) {
+      var g = document.createElement('optgroup'); g.label = r.region;
+      r.cities.forEach(function (c) { var o = el('option', '', c); o.value = c; g.appendChild(o); });
+      sel.appendChild(g);
+    });
+  }
+  function updImpBtn() {
+    var n = (state.imp || []).filter(function (x) { return x.on; }).length;
+    $('btn-imp-add').textContent = '加入勾選的 ' + n + ' 個地點';
+    $('btn-imp-add').disabled = !n;
+  }
+  function onImpCityAll() {
+    var c = $('imp-city-all').value;
+    if (!c) return;
+    (state.imp || []).forEach(function (x) { if (x.d.scope === 'domestic' && !x.d.city) x.d.city = c; });
+    renderImp();
+  }
+  function closeImp() { state.imp = null; $('imp-file').value = ''; renderImp(); }
+  function onImpAdd() {
+    var pick = (state.imp || []).filter(function (x) { return x.on; });
+    var bad = pick.filter(function (x) { return x.d.scope === 'domestic' && !x.d.city; });
+    if (bad.length) { msg('msg-imp', '還有 ' + bad.length + ' 個地點沒選縣市（紅框的），選好或取消勾選再加入。', 'err'); return; }
+    var today = todayYmd(), list = [];
+    pick.forEach(function (x) { var r = L.normalizeWish(x.d, newId('w'), today); if (r.ok) list.push(r.wish); });
+    var room = L.WISH_MAX - wishesIn('').length;
+    if (list.length > room) { msg('msg-imp', '「我自己」的願望清單最多 ' + L.WISH_MAX + ' 筆，現在只能再加 ' + Math.max(0, room) + ' 筆，少勾一些吧。', 'err'); return; }
+    var btn = $('btn-imp-add'); btn.disabled = true; msg('msg-imp', '加入中…');
+    saveWishesToMine(list).then(function (n) {
+      closeImp();
+      msg('msg-imp', '已把 ' + n + ' 個地點加進「我自己」的願望清單。' + (state.space ? '要放進群組，到旅伴頁按「把「我自己」的願望複製進來」。' : ''), 'ok');
+      updateCount(); renderWishes(); renderPicks();
+    }, function (e) { msg('msg-imp', e.message, 'err'); updImpBtn(); });
+  }
+  // 一次存很多筆到「我自己」：登入時用雲端的批次匯入，沒接後端就存手機
+  function saveWishesToMine(list) {
+    var cid = cloudId('');
+    if (!cid) { store(KEY_WISH, (store(KEY_WISH) || []).concat(list)); return Promise.resolve(list.length); }
+    var items = list.map(function (w) {
+      var body = {}; Object.keys(w).forEach(function (k) { if (k !== 'id') body[k] = w[k]; });
+      return { kind: 'wish', itemId: w.id, json: JSON.stringify(body) };
+    });
+    var batches = [];
+    for (var i = 0; i < items.length; i += 100) batches.push(items.slice(i, i + 100));
+    var added = 0;
+    return batches.reduce(function (p, b) {
+      return p.then(function () {
+        return call('importItems', '', { json: JSON.stringify({ items: b }) }).then(function (d) {
+          added += d.added; setGcache(cid, L.mergeRows(gcache(cid), d.items));
+        });
+      });
+    }, Promise.resolve()).then(function () { return added; });
+  }
+
   function planFromWish(w) {
     if ($('f-city').value !== w.city) { $('f-city').value = w.city; state.picked = {}; }
     state.picked[w.id] = true;
@@ -1245,6 +1392,7 @@
     }).then(function () {
       state.lastSync = 0; switchSpace(state.space); renderGroups();
       if (notes.length) msg('msg-top', $('msg-top').textContent + ' ' + notes.join(' '), notes.some(function (n) { return /沒有搬/.test(n); }) ? 'err' : 'ok');
+      if (state.pendingAdd) { var pa = state.pendingAdd; state.pendingAdd = null; applyAdd(pa); }
       var j = state.pendingJoin;
       if (!j) return;
       // 剛建好的帳號：讓他確認在群組裡的暱稱（被釋放的旅伴要填回原本的暱稱才拿得回自己的點）
@@ -1618,6 +1766,13 @@
     $('btn-parse').addEventListener('click', onParse);
     $('btn-wish-add').addEventListener('click', onWishAdd);
     $('btn-wish-cancel').addEventListener('click', function () { stopEditWish(); });
+    $('share-prefix').value = location.href.split('#')[0].split('?')[0] + '#add=';
+    $('btn-share-copy').addEventListener('click', onShareCopy);
+    fillCityOptions($('imp-city-all'), '選縣市');
+    $('imp-file').addEventListener('change', onImpFiles);
+    $('btn-imp-city').addEventListener('click', onImpCityAll);
+    $('btn-imp-add').addEventListener('click', onImpAdd);
+    $('btn-imp-cancel').addEventListener('click', function () { closeImp(); msg('msg-imp', ''); });
     $('w-map').addEventListener('input', function () { onMapPaste(false); });
     $('w-name').addEventListener('input', function () { if (/https:\/\//.test($('w-name').value)) onMapPaste(true); });
     $('btn-export').addEventListener('click', onExport);
@@ -1683,6 +1838,8 @@
     }
     takeInvite();
     window.addEventListener('hashchange', takeInvite);   // 頁面開著時又點了一條邀請連結
+    takeAdd();
+    window.addEventListener('hashchange', takeAdd);
     // 登入中：先跟後端對一次群組清單（換瀏覽器、被移出都在這裡更新），再同步資料
     (auth() ? refreshMe().then(null, function (e) { setStatus(e.message, true); }) : Promise.resolve()).then(pullNow);
     setInterval(function () { if (document.visibilityState === 'visible') pullNow(); }, POLL_MS);
