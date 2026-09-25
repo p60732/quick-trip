@@ -347,6 +347,10 @@ ul.plain li + li { margin-top: 4px; }
 .acct-menu .msg { margin: 0 8px; }
 .acct-menu .msg:empty { display: none; }
 .group-tip { margin: 0 4px 12px; }
+/* 沒登入：只留品牌、登入框和說明，其他功能鎖住 */
+body.need-login .appbar nav.tabs, body.need-login #space-bar, body.need-login #view-plan, body.need-login #view-wish,
+body.need-login #view-result, body.need-login #view-saved, body.need-login #view-group { display: none !important; }
+#login-invite { color: var(--ok); font-weight: 700; }
 @media (max-width: 360px) {
   .brand-txt small { display: none; } .logo { display: none; }
   .acct-chip { padding: 8px 12px; max-width: 32vw; }
