@@ -179,12 +179,50 @@
     if (f.days === 2) lines.push('6. 給 2–3 個住宿建議（區域或具體旅館皆可），說明為什麼選那一區。');
     lines.push((f.days === 2 ? '7' : '6') + '. 預算以「每人」新台幣估算，列出交通、門票、餐費' + (f.days === 2 ? '、住宿（以兩人一房平分）' : '') + '。');
     lines.push('');
-    lines.push('【回覆格式】只回一個 ' + FENCE + 'json 程式碼區塊，不要其他文字，格式如下：');
+    return lines.concat(formatSpec_(f.days)).join('\n');
+  }
+  function formatSpec_(days) {
+    return [
+      '【回覆格式】只回一個 ' + FENCE + 'json 程式碼區塊，不要其他文字，格式如下：',
+      FENCE + 'json',
+      JSON.stringify(schemaExample_(days), null, 1),
+      FENCE,
+      'type 只能是：' + TYPES.join(' / ') + '。time 用 24 小時制 HH:MM。cost 是每人新台幣整數，免費填 0。mapQuery 填能在 Google 地圖搜到的「店名＋區域」。'
+    ];
+  }
+  // 行程排好後想再請 AI 改：附上目前的行程＋想改的地方（沒寫就請它照同樣條件重排一版）
+  function buildRevisePrompt(plan, request, f) {
+    var p = plan && Array.isArray(plan.days) ? plan : { days: [] };
+    var days = p.days.length >= 2 ? 2 : 1;
+    var req = clean_(request).slice(0, 500);
+    var lines = [];
+    lines.push('這是我已經排好的台灣國內小旅行行程（JSON），請幫我修改。');
+    lines.push('');
+    lines.push('【想改的地方】');
+    lines.push(req ? '- ' + req : '- 照同樣的出發地、日期、交通和步調重新排一版，換掉不順路或不理想的點，其他盡量保留。');
+    var base = [];
+    if (f && typeof f === 'object') {
+      if (f.origin) base.push('出發地：' + originText(f.origin));
+      if (isTwCity(f.city)) base.push('縣市：' + clean_(f.city));
+      var tl = f.transport ? normTransport(f.transport) : [];
+      if (tl.length) base.push('交通：' + tl.join('、'));
+      if (clean_(f.pace)) base.push('步調：' + clean_(f.pace));
+      if (f.people) base.push('人數：' + f.people + ' 人');
+    }
+    if (base.length) { lines.push(''); lines.push('【原本的條件】' + base.join('；')); }
+    lines.push('');
+    lines.push('【修改要求】');
+    lines.push('1. 沒被要求改的部分盡量保留原樣（時間、店家、交通）。');
+    lines.push('2. 改動後要重新檢查時間順序與交通接駁是否合理，路線不要來回折返。');
+    lines.push('3. 用真實存在、目前仍營業的店家與景點；不確定的在 note 寫明並把 verify 設為 true。');
+    lines.push('4. 預算、附近備選、提醒事項也跟著更新。');
+    lines.push('');
+    lines.push('【目前的行程】');
     lines.push(FENCE + 'json');
-    lines.push(JSON.stringify(schemaExample_(f.days), null, 1));
+    lines.push(JSON.stringify(p));
     lines.push(FENCE);
-    lines.push('type 只能是：' + TYPES.join(' / ') + '。time 用 24 小時制 HH:MM。cost 是每人新台幣整數，免費填 0。mapQuery 填能在 Google 地圖搜到的「店名＋區域」。');
-    return lines.join('\n');
+    lines.push('');
+    return lines.concat(formatSpec_(days)).join('\n');
   }
 
   function schemaExample_(days) {
@@ -680,7 +718,7 @@
     isTwCity: isTwCity, guessCity: guessCity, normTransport: normTransport, travelMode: travelMode, transportText: transportText,
     normOrigin: normOrigin, originText: originText, originPlace: originPlace, destText: destText,
     nextSaturday: nextSaturday, addDays: addDays, dayLabel: dayLabel,
-    validateForm: validateForm, buildPrompt: buildPrompt, parsePlan: parsePlan,
+    validateForm: validateForm, buildPrompt: buildPrompt, buildRevisePrompt: buildRevisePrompt, parsePlan: parsePlan,
     budgetTotal: budgetTotal, prevPlace: prevPlace,
     mapSearchUrl: mapSearchUrl, mapDirUrl: mapDirUrl, isGmapUrl: isGmapUrl, parseMapShare: parseMapShare,
     normalizeWish: normalizeWish, cleanWishes: cleanWishes, filterWishes: filterWishes,

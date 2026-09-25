@@ -488,6 +488,46 @@
     state.day = 0;
     openResult();
   }
+  function onPasteClear() {
+    $('paste-in').value = ''; msg('msg-parse', '');
+    try { $('paste-in').focus(); } catch (e) {}
+  }
+
+  /* ================= 行程編輯：請 AI 重新排 ================= */
+  function revisePrompt() {
+    var text = L.buildRevisePrompt(state.plan, $('revise-req').value, state.form);
+    $('revise-prompt').value = text;
+    return text;
+  }
+  function onReviseCopy(open) {
+    if (!state.plan) return;
+    var text = revisePrompt();
+    if (open) window.open('https://claude.ai/new', '_blank', 'noopener');   // 要在點擊的同一拍開
+    copyText(text, $('revise-prompt')).then(function (ok) {
+      if (ok) msg('msg-revise', open ? '已複製，到 Claude 貼上送出，再把新的回答貼回下面。' : '已複製。', 'ok');
+      else { $('revise-box').open = true; msg('msg-revise', '自動複製失敗，請在「看提示詞」裡長按全選後複製。', 'err'); }
+    });
+  }
+  function onReviseApply() {
+    var r = L.parsePlan($('revise-in').value);
+    if (!r.ok) { msg('msg-revise-apply', r.error, 'err'); return; }
+    state.planBackup = { plan: state.plan, dirty: state.dirty };
+    state.plan = r.plan; state.dirty = true; state.editing = false; state.day = 0;
+    $('revise-in').value = ''; $('revise-req').value = '';
+    msg('msg-revise-apply', ''); msg('msg-revise', '');
+    updateSaveButton(); renderPlan();
+    $('revise-undo-bar').classList.remove('hidden');
+    msg('msg-result', '已換成 AI 重新排的行程，還沒存：滿意就按「' + $('btn-save').textContent + '」。', 'ok');
+    window.scrollTo(0, 0);
+  }
+  function onReviseUndo() {
+    var b = state.planBackup;
+    if (!b) return;
+    state.plan = b.plan; state.dirty = b.dirty; state.planBackup = null; state.day = 0;
+    $('revise-undo-bar').classList.add('hidden');
+    msg('msg-result', '已換回原本的行程。', 'ok');
+    updateSaveButton(); renderPlan();
+  }
 
   /* ================= 願望清單（規劃頁的勾選） ================= */
   function renderPicks() {
@@ -647,6 +687,8 @@
     renderSaveSpace();
     updateSaveButton();
     msg('msg-result', '');
+    state.planBackup = null; $('revise-undo-bar').classList.add('hidden');
+    $('revise-in').value = ''; msg('msg-revise', ''); msg('msg-revise-apply', '');
     renderPlan();
     show('result');
   }
@@ -663,6 +705,7 @@
     b.disabled = !!(savedHere && !state.dirty);
     b.textContent = savedHere ? (state.dirty ? '儲存修改' : '已存 ✓') : '存起來';
     $('btn-edit').textContent = state.editing ? '完成編輯' : '編輯行程';
+    $('revise-card').classList.toggle('hidden', !(state.editing && isOwnerOf(state.tripSpace)));
   }
   function markDirty() { state.dirty = true; updateSaveButton(); }
 
@@ -684,7 +727,7 @@
       return Promise.all(L.seedChecks(id, state.plan).map(function (c) { return putItem(sp, 'check', c.id, c); }));
     }).then(function () {
       askPersist();
-      state.tripId = id; state.tripSpace = sp; state.dirty = false; state.tripSavedDate = trip.savedDate;
+      state.tripId = id; state.tripSpace = sp; state.dirty = false; state.tripSavedDate = trip.savedDate; state.planBackup = null; $('revise-undo-bar').classList.add('hidden');
       msg('msg-result', sp ? '已存到「' + spaceName(sp) + '」，旅伴打開就看得到。' : '已存到「我自己」。', 'ok');
       updateSaveButton(); updateCount(); renderPlan();
     }, function (e) {
@@ -1590,6 +1633,12 @@
       if (!state.editing && state.tripId && state.dirty) { $('save-space').value = state.tripSpace; onSave(); }
     });
     $('btn-print').addEventListener('click', function () { window.print(); });
+    $('btn-paste-clear').addEventListener('click', onPasteClear);
+    $('btn-revise-open').addEventListener('click', function () { onReviseCopy(true); });
+    $('btn-revise-copy').addEventListener('click', function () { onReviseCopy(false); });
+    $('btn-revise-apply').addEventListener('click', onReviseApply);
+    $('btn-revise-clear').addEventListener('click', function () { $('revise-in').value = ''; msg('msg-revise-apply', ''); try { $('revise-in').focus(); } catch (e) {} });
+    $('btn-revise-undo').addEventListener('click', onReviseUndo);
     $('tab-plan').addEventListener('click', function () { show('plan'); });
     $('tab-wish').addEventListener('click', function () { show('wish'); });
     $('tab-saved').addEventListener('click', function () { show('saved'); });
