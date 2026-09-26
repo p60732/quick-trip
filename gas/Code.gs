@@ -55,8 +55,8 @@ function doPost(e) {
 
 function fail(msg, code) { var e = new Error(msg); e.userMsg = msg; e.code = code || 'bad'; throw e; }
 
-var PUBLIC = { login: 1, join: 1, inviteInfo: 1, ping: 1 };
-var READ = { ping: 1, inviteInfo: 1, me: 1, myTrips: 1, getTrip: 1, rev: 1, ended: 1, updates: 1 };
+var PUBLIC = { login: 1, join: 1, inviteInfo: 1, ping: 1, resolveMap: 1 };
+var READ = { ping: 1, resolveMap: 1, inviteInfo: 1, me: 1, myTrips: 1, getTrip: 1, rev: 1, ended: 1, updates: 1 };
 
 function handle(b) {
   var fn = API[b.action];
@@ -203,6 +203,31 @@ function tripByCode(code) {
 var API = {};
 
 API.ping = function () { return { pong: true }; };
+
+/* Google 地圖分享短網址 → 店名（瀏覽器跨網域讀不到轉址，由後端代讀） */
+API.resolveMap = function (b) {
+  var url = String(b.url || '').trim();
+  var ok = /^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps)\//;
+  if (!ok.test(url)) fail('只支援 Google 地圖的分享連結');
+  var cur = url, name = '';
+  for (var i = 0; i < 5 && !name; i++) {
+    name = mapName(cur);
+    if (name) break;
+    var res = UrlFetchApp.fetch(cur, { followRedirects: false, muteHttpExceptions: true });
+    var h = res.getHeaders(); var loc = h.Location || h.location;
+    if (!loc) { name = mapName(res.getContentText().slice(0, 20000), true); break; }
+    cur = loc;
+  }
+  return { name: name || '', url: cur };
+};
+function mapName(s, html) {
+  if (html) { var m = /<meta[^>]+property="og:title"[^>]+content="([^"]+)"/.exec(s); return m ? m[1].split(' · ')[0].trim() : ''; }
+  var p = /\/maps\/place\/([^\/@?]+)/.exec(s);
+  if (p) return decodeURIComponent(p[1].replace(/\+/g, ' ')).split(',')[0].trim();
+  var q = /[?&]q=([^&]+)/.exec(s);
+  if (q && !/^[\d.,\s-]+$/.test(decodeURIComponent(q[1]))) return decodeURIComponent(q[1].replace(/\+/g, ' ')).split(',')[0].trim();
+  return '';
+}
 
 API.inviteInfo = function (b) {
   var code = String(b.code || '').trim();

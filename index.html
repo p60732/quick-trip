@@ -659,6 +659,7 @@ function stopHTML(t, di, si, opts={}){
       <div class="acts">
         <a class="act" href="${esc(gm.dir(dest(s), mode))}" target="_blank" rel="noopener">導航</a>
         <a class="act" href="${esc(s.mapUrl || gm.search(dest(s)))}" target="_blank" rel="noopener">看評價</a>
+        ${s.type==='吃'||s.type==='喝'?`<a class="act" href="${esc('https://www.google.com/search?tbm=isch&q='+enc(dest(s)+' 菜單'))}" target="_blank" rel="noopener">菜單</a>`:''}
         ${opts.noswap?'':`<button class="act" data-act="swap" data-d="${di}" data-s="${si}">換一${s.type==='玩'?'個':'家'}</button><button class="act" style="color:var(--mute);border-color:#e0dcd4" data-act="rmStop" data-d="${di}" data-s="${si}">移除</button>`}
       </div>
       ${park}
@@ -786,7 +787,16 @@ document.addEventListener('input', e=>{
   if(e.target.id!=='swapName') return;
   const p = parseShared(e.target.value.trim()); const t=$('#swapTitle'); const n=$('#swapNote');
   if(p.name){ t.value = p.name; n.textContent=''; }
-  else if(p.url){ t.value=''; n.textContent='這個連結看不到店名，請在上面「店名」打一下，行程才會顯示正確名字。'; t.focus(); }
+  else if(p.url){
+    t.value=''; n.textContent='讀取店名中…';
+    const mine = e.target.value;
+    (typeof api==='function' && API_URL ? api('resolveMap',{url:p.url}) : Promise.reject()).then(r=>{
+      if($('#swapName') && $('#swapName').value===mine){
+        if(r.name){ $('#swapTitle').value=r.name; $('#swapNote').textContent=''; }
+        else { $('#swapNote').textContent='這個連結讀不到店名，請在上面「店名」打一下。'; $('#swapTitle').focus(); }
+      }
+    }).catch(()=>{ if($('#swapNote')){ $('#swapNote').textContent='讀不到店名（可能沒網路），請在上面「店名」打一下。'; } });
+  }
 });
 function parseShared(text){
   // Google 地圖分享出來通常是「店名\n地址\nhttps://maps.app.goo.gl/…」，也可能只有連結或只有店名
