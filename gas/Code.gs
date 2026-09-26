@@ -26,9 +26,10 @@ var SCHEMA = {
   Expenses:    ['expenseId','tripId','title','category','amount','paidBy','splitMode','shares','stopRef','createdBy','createdAt','deleted'],
   Settlements: ['tripId','fromId','toId','amount','status','updatedAt'],
   Log:         ['at','tripId','userId','action','text'],
-  Settings:    ['key','value']
+  Settings:    ['key','value'],
+  UserData:    ['userId','k','t','s','del','v','v2','v3','v4']
 };
-var DEFAULTS = { maxUsers: 60, maxOwnedTrips: 3, maxPeople: 6, sessionDays: 7, restoreDays: 30, backupKeep: 8 };
+var DEFAULTS = { maxUsers: 60, maxOwnedTrips: 3, maxPeople: 6, sessionDays: 60, restoreDays: 30, backupKeep: 8 };
 var ACTIVE = { collect: 1, plan: 1, final: 1 };
 
 /* ============ 入口 ============ */
@@ -203,6 +204,36 @@ function tripByCode(code) {
 var API = {};
 
 API.ping = function () { return { pong: true }; };
+
+/* ============ 個人資料雲端同步（我的行程、口袋名單、偏好、用餐模板） ============
+ * 每一筆一列：k = trip:ID / pocket:ID / prefs / meals
+ * t = 手機端改的時間（新的蓋舊的），s = 伺服器收到的時間（給手機問「這之後有什麼新的」）
+ * v 超過一格上限就分到 v2~v4 */
+var UD_CELL = 45000;
+API.syncData = function (b, me) {
+  var items = Array.isArray(b.items) ? b.items : [];
+  if (items.length > 500) fail('一次同步太多筆，請再按一次');
+  var mine = DB.filter('UserData', function (r) { return r.userId === me.userId; });
+  var byK = {}; mine.forEach(function (r) { byK[r.k] = r; });
+  var stamp = now(), keep = {};
+  items.forEach(function (it) {
+    var k = String(it.k || '');
+    if (!/^(trip:|pocket:)[\w.-]{1,60}$|^(prefs|meals)$/.test(k)) return;
+    var t = +it.t || 0, del = !!it.del, v = del ? '' : String(it.v == null ? '' : it.v);
+    if (v.length > UD_CELL * 4) fail('有一份行程太大了，存不上雲端');
+    var row = byK[k];
+    if (row && +row.t > t) { keep[k] = 1; return; } // 雲端比較新，不蓋，回傳雲端的給手機
+    var parts = [v.slice(0, UD_CELL), v.slice(UD_CELL, UD_CELL * 2), v.slice(UD_CELL * 2, UD_CELL * 3), v.slice(UD_CELL * 3)];
+    if (!row) { row = DB.insert('UserData', { userId: me.userId, k: k }); byK[k] = row; mine.push(row); }
+    row.t = t; row.s = stamp; row.del = del; row.v = parts[0]; row.v2 = parts[1]; row.v3 = parts[2]; row.v4 = parts[3];
+    DB.save('UserData', row);
+  });
+  var since = +b.since || 0;
+  var out = mine.filter(function (r) { return +r.s > since || keep[r.k]; }).map(function (r) {
+    return { k: r.k, t: +r.t, del: bool(r.del), v: bool(r.del) ? null : String(r.v || '') + String(r.v2 || '') + String(r.v3 || '') + String(r.v4 || '') };
+  });
+  return { now: stamp, items: out };
+};
 
 /* Google 地圖分享短網址 → 店名（瀏覽器跨網域讀不到轉址，由後端代讀） */
 API.resolveMap = function (b) {

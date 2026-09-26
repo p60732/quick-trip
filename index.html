@@ -118,9 +118,14 @@ textarea.inp{height:auto;min-height:180px;padding:12px 14px;font-size:14px;line-
 /* 揪團後端（Google Apps Script 網頁應用程式網址），部署後貼在這裡 */
 const API_URL = 'https://script.google.com/macros/s/AKfycbziZY2SgwGr_hPJO06DJa5Ua2WN8eCgv5ssjzHcxN4WCvOu3LCaGr6o0ueXQPmE_7rs/exec';
 /* ================= storage ================= */
+// 這幾樣登入後會自動存到雲端（group.js 的 onLocalChange）
+const SYNC_WATCH = {trips:'trip', pocket:'pocket', prefs:1, meals:1, session:1};
 const LS = {
   get(k, d){ try{ const v = localStorage.getItem('lg.'+k); return v==null? d : JSON.parse(v); }catch(e){ return d; } },
-  set(k, v){ try{ localStorage.setItem('lg.'+k, JSON.stringify(v)); return true; }catch(e){ toast('手機空間不足或瀏覽器擋住儲存'); return false; } },
+  set(k, v){ const old = (k in SYNC_WATCH)? this.get(k, null) : undefined;
+    try{ localStorage.setItem('lg.'+k, JSON.stringify(v)); }catch(e){ toast('手機空間不足或瀏覽器擋住儲存'); return false; }
+    if(k in SYNC_WATCH && typeof onLocalChange==='function') onLocalChange(k, old, v);
+    return true; },
   del(k){ try{ localStorage.removeItem('lg.'+k);}catch(e){} }
 };
 const DEFAULT_PREFS = {
@@ -163,6 +168,7 @@ function toMin(t){ const m=/^(\d{1,2}):(\d{2})/.exec(t||''); return m? (+m[1])*6
 function fromMin(n){ n=((n%1440)+1440)%1440; return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 const ICON = {
+  bookmark:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"/></svg>',
   back:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   close:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   pin:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
@@ -229,7 +235,7 @@ routes.home = () => {
     <button class="bigcard" data-go="nearby"><span class="ic" style="background:var(--terra-l);color:var(--terra)">${ICON.pin}</span><span><b>路過找吃</b><span class="d">人在外面，馬上找附近吃喝</span></span></button>
     <button class="bigcard" data-go="form"><span class="ic" style="background:var(--blue-l);color:var(--blue)">${ICON.go}</span><span><b>直接出發</b><span class="d">給一個地點，排出吃喝玩行程</span></span></button>
     <button class="bigcard" data-go="mytrips"><span class="ic" style="background:var(--sage-l);color:var(--sage)">${ICON.list}</span><span><b>我的行程</b><span class="d">${n? '存了 '+n+' 份行程' : '存過的行程會放在這裡'}</span></span></button>
-    <button class="bigcard" data-go="pocket"><span class="ic" style="background:var(--amber-l,#fbf0d9);color:var(--amber,#b7791f)">${ICON.pin}</span><span><b>口袋名單</b><span class="d">${pocket().length? '存了 '+pocket().length+' 家，隨時排進行程' : '路上看到想去的店，貼連結存起來'}</span></span></button>
+    <button class="bigcard" data-go="pocket"><span class="ic" style="background:var(--amber-l,#fbf0d9);color:var(--amber,#b7791f)">${ICON.bookmark}</span><span><b>口袋名單</b><span class="d">${pocket().length? '存了 '+pocket().length+' 家，隨時排進行程' : '路上看到想去的店，貼連結存起來'}</span></span></button>
   </div>
   <div class="pad" style="margin-top:20px;display:flex;flex-direction:column;gap:4px">
     <button class="link" data-go="prefs">吃喝玩偏好</button>
@@ -375,6 +381,7 @@ routes.pocket = (mode) => {
     ${all.length? `<div class="chips" style="gap:6px">${['全部',...PK_TYPES,...areas].map(x=>`<button class="chip" style="min-height:36px" aria-pressed="${f===x}" data-act="pkFilter" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
       <div class="card list">${rows || '<div class="rowitem sub">這個分類還沒有。</div>'}</div>`
       : `<div class="card" style="padding:18px"><div class="sub" style="line-height:1.6">還沒有存任何店。<br>在 Google 地圖看到想去的，就「分享」→「複製連結」貼上來存著，之後排行程時一次加進去。</div></div>`}
+    ${sel? '' : (typeof cloudNote==='function'? cloudNote() : '')}
   </div>
   ${sel? `<div class="foot" style="position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--bg);border-top:1px solid var(--line)">
       <div class="hint" style="text-align:center">已選 ${sel.size} 家</div>
@@ -1066,7 +1073,7 @@ routes.mytrips = () => {
     ${past.length?`<details><summary class="sub" style="min-height:44px;display:flex;align-items:center;cursor:pointer">去過的（${past.length}）</summary><div class="stack">${past.map(card).join('')}</div></details>`:''}
     <h2 class="sec" style="color:var(--sage-d)">我的團</h2>
     ${typeof groupSection==='function'? groupSection() : '<div class="card" style="padding:16px"><div class="sub">揪團功能載入失敗，請重新整理。</div></div>'}
-    <div class="hint">沒有帳號時，行程只存在這支手機的這個瀏覽器${isStandalone()?'（主畫面版）':''}。</div>
+    ${typeof cloudNote==='function'? cloudNote() : `<div class="hint">行程只存在這支手機的這個瀏覽器。</div>`}
   </div>`;
 };
 

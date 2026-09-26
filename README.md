@@ -38,7 +38,7 @@
 | maxUsers | 60 | 全站帳號上限，滿了邀請連結會顯示名額已滿 |
 | maxOwnedTrips | 3 | 每人同時開幾個進行中的團 |
 | maxPeople | 6 | 每團最多幾人 |
-| sessionDays | 7 | 多久沒用要重新登入 |
+| sessionDays | 60 | 多久沒用要重新登入 |
 | restoreDays | 30 | 取消的團幾天內可以還原 |
 
 停用某個帳號：Users 分頁把那個人的 `disabled` 改成 TRUE。

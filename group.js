@@ -132,7 +132,7 @@ ACT.ignoreInApp = () => { sessionStorage.setItem('lg.ignoreInApp', '1'); history
 routes.login = () => {
   const code = sessionStorage.getItem('lg.pendingCode') || '';
   return header('登入', code ? 'join/' + enc(code) : 'home') + `<div class="pad stack" style="gap:18px">
-    <div class="sub">揪團要登入；路過找吃和直接出發不用。</div>
+    <div class="sub">登入後，你的行程、口袋名單、偏好都會存到雲端；換手機登入就都回來。揪團也要登入。</div>
     ${code ? '<div class="note blue">登入後會直接加進剛剛那一團。</div>' : ''}
     <div class="field"><label class="lbl" for="lgName">名字</label><input id="lgName" class="inp" autocomplete="username" placeholder="加入團時設的名字"></div>
     <div class="field"><label class="lbl" for="lgPw">密碼</label><input id="lgPw" class="inp" type="password" autocomplete="current-password"></div>
@@ -258,7 +258,7 @@ routes.account = (mode) => {
 };
 ACT.saveName = el => run(el, async () => { const r = await api('changeName', { name: $('#acName').value.trim() }); const s = session(); s.user = r.user; LS.set('session', s); toast('名字改好了'); });
 ACT.savePw = el => run(el, async () => { await api('changePw', { password: $('#acPw').value }); toast('密碼改好了'); go('mytrips'); });
-ACT.logout = el => run(el, async () => { await quiet(api('logout')); LS.del('session'); Object.keys(GC).forEach(k => delete GC[k]); toast('已登出'); go('home'); });
+ACT.logout = el => run(el, async () => { const clean = await flushBeforeLogout(); await quiet(api('logout')); LS.del('session'); Object.keys(GC).forEach(k => delete GC[k]); toast(clean ? '已登出，資料都在雲端，下次登入會回來' : '已登出。有資料還沒傳上雲端，先留在這支手機'); go('home'); });
 
 /* ================= 我的行程（加上團） ================= */
 let myTripsData = null;
@@ -961,14 +961,133 @@ routes.ended = () => {
 };
 ACT.restore = el => run(el, async () => { try { await api('restoreTrip', { tripId: el.dataset.id }); } catch (e) { if (e.code === 'ownedFull') { myTripsData = await api('myTrips'); go('ownedfull'); } throw e; } myTripsData = null; toast('還原了'); go('g/' + el.dataset.id); });
 
+/* ================= 個人資料雲端同步 =================
+ * 登入後：我的行程、口袋名單、吃喝玩偏好、用餐模板都自動存到雲端（試算表 UserData 分頁）
+ * 手機上改了 → 1.5 秒後上傳；打開 App、切回來、恢復網路時 → 把別台手機改的拉下來
+ * 沒網路也照常用，先記在 syncMeta.dirty，連上再補傳。
+ * dirty 的值：正數 = 改過的時間；負數 = 刪掉的時間 */
+const syncMeta = () => LS.get('syncMeta', { uid: null, since: 0, dirty: {}, last: 0 });
+let syncApplying = false, syncTimer = null, syncBusy = false, syncAgain = false;
+let cloud = { state: 'idle', msg: '' };  // idle | syncing | ok | err | auth
+function onLocalChange(k, oldV, newV) {
+  if (k === 'session') { if (newV && newV.token) scheduleSync(50); return; }
+  if (syncApplying) return;
+  const m = syncMeta(); const t = Date.now(); let changed = false;
+  if (k === 'prefs' || k === 'meals') { if (JSON.stringify(oldV) !== JSON.stringify(newV)) { m.dirty[k] = t; changed = true; } }
+  else {
+    const pre = SYNC_WATCH[k] + ':';
+    const o = new Map((oldV || []).filter(x => x && x.id).map(x => [x.id, JSON.stringify(x)]));
+    const n = new Map((newV || []).filter(x => x && x.id).map(x => [x.id, JSON.stringify(x)]));
+    n.forEach((js, id) => { if (o.get(id) !== js) { m.dirty[pre + id] = t; changed = true; } });
+    o.forEach((js, id) => { if (!n.has(id)) { m.dirty[pre + id] = -t; changed = true; } });
+  }
+  if (changed) { LS.set('syncMeta', m); scheduleSync(); }
+}
+function scheduleSync(ms = 1500) { if (!loggedIn() || !API_URL) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms); }
+function localValue(k) {
+  if (k === 'prefs' || k === 'meals') return LS.get(k, null);
+  const [kind, id] = [k.slice(0, k.indexOf(':')), k.slice(k.indexOf(':') + 1)];
+  return (kind === 'trip' ? trips() : pocket()).find(x => x.id === id) || null;
+}
+function applyRemote(items) {
+  if (!items.length) return false;
+  const m = syncMeta(); let tl = trips(), pl = pocket(); let tChanged = false, pChanged = false, other = false;
+  items.forEach(it => {
+    const mine = m.dirty[it.k]; if (mine && Math.abs(mine) > it.t) return; // 手機上的比較新，等一下會上傳
+    let v = null; if (!it.del) { try { v = JSON.parse(it.v); } catch (e) { return; } }
+    if (it.k === 'prefs' || it.k === 'meals') { syncApplying = true; if (v) LS.set(it.k, v); syncApplying = false; other = true; return; }
+    const kind = it.k.slice(0, it.k.indexOf(':')), id = it.k.slice(it.k.indexOf(':') + 1);
+    const list = kind === 'trip' ? tl : pl; const i = list.findIndex(x => x.id === id);
+    if (it.del) { if (i >= 0) list.splice(i, 1); else return; }
+    else if (i >= 0) { if (JSON.stringify(list[i]) === JSON.stringify(v)) return; list[i] = v; }
+    else list.unshift(v);
+    if (kind === 'trip') tChanged = true; else pChanged = true;
+  });
+  syncApplying = true;
+  if (tChanged) LS.set('trips', tl);
+  if (pChanged) savePocket(pl.sort((a, b) => (b.at || 0) - (a.at || 0)));
+  syncApplying = false;
+  return tChanged || pChanged || other;
+}
+async function syncNow() {
+  if (!loggedIn() || !API_URL) return;
+  if (syncBusy) { syncAgain = true; return; }
+  const uid = session().user.userId;
+  let m = syncMeta();
+  if (m.uid !== uid) {
+    // 這支手機第一次跟這個帳號同步：手機上現有的全部上傳（用各自的時間比，雲端比較新的會留雲端的）
+    syncApplying = true; savePocket(pocket()); syncApplying = false;
+    m = { uid, since: 0, dirty: {}, last: 0 };
+    trips().forEach(t => { m.dirty['trip:' + t.id] = t.updatedAt || 1; });
+    pocket().forEach(p => { m.dirty['pocket:' + p.id] = p.at || 1; });
+    ['prefs', 'meals'].forEach(k => { if (LS.get(k, null)) m.dirty[k] = 1; });
+    LS.set('syncMeta', m);
+  }
+  syncBusy = true; cloud = { state: 'syncing', msg: '' }; cloudUI();
+  const sent = Object.assign({}, m.dirty);
+  const items = Object.keys(sent).slice(0, 300).map(k => {
+    const t = sent[k]; const v = t < 0 ? null : localValue(k);
+    return v == null ? { k, t: Math.abs(t), del: true } : { k, t, v: JSON.stringify(v) };
+  });
+  try {
+    const r = await api('syncData', { since: m.since, items }, { noAuthRedirect: true });
+    const changed = applyRemote(r.items);
+    m = syncMeta(); m.since = r.now; m.last = Date.now();
+    Object.keys(sent).forEach(k => { if (m.dirty[k] === sent[k]) delete m.dirty[k]; });
+    LS.set('syncMeta', m);
+    cloud = { state: Object.keys(m.dirty).length ? 'syncing' : 'ok', msg: '' };
+    if (Object.keys(m.dirty).length) syncAgain = true;
+    if (changed) softRender();
+  } catch (e) {
+    cloud = { state: e.code === 'auth' ? 'auth' : 'err', msg: e.message };
+  } finally {
+    syncBusy = false; cloudUI();
+    if (syncAgain) { syncAgain = false; scheduleSync(300); }
+  }
+}
+// 別台手機改的資料拉下來後，只在「看清單」的頁面重畫，打字中不打斷
+function softRender() {
+  const name = (location.hash.slice(1) || 'home').split('/')[0];
+  const a = document.activeElement;
+  if (a && /INPUT|TEXTAREA/.test(a.tagName)) return;
+  if (['home', 'mytrips', 'pocket', 'trip', 'prefs', 'meals'].includes(name) && !$('#layer').innerHTML) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+}
+function pendingCount() { return Object.keys(syncMeta().dirty).length; }
+function cloudText() {
+  if (!API_URL) return '資料存在這支手機。';
+  if (!loggedIn()) return '';
+  const m = syncMeta(); const n = pendingCount();
+  if (cloud.state === 'auth') return '登入過期了，<button class="link" style="display:inline;min-height:0;padding:0" data-go="login">重新登入</button>才能存到雲端（手機上的都還在）。';
+  if (cloud.state === 'syncing') return '☁︎ 正在存到雲端…';
+  if (n) return `☁︎ 有 ${n} 筆還沒上傳，連上網路會自動補傳。<button class="link" style="display:inline;min-height:0;padding:0" data-act="syncNow">現在試試</button>`;
+  if (m.last) { const d = new Date(m.last); return `☁︎ 已存到雲端（${session().user.name}）· ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} 同步`; }
+  return '☁︎ 登入了，會自動存到雲端。';
+}
+function cloudNote() {
+  if (API_URL && !loggedIn()) return `<div class="note amber" style="line-height:1.6"><b>還沒登入：資料只存在這支手機</b><br>登入後，行程和口袋名單會自動存到雲端，換手機、清掉瀏覽器也不會不見。<br><button class="link" style="display:inline;min-height:0;padding:0;font-weight:700" data-go="login">登入並存到雲端</button></div>`;
+  return `<div class="hint" id="cloudLine" role="status">${cloudText()}</div>`;
+}
+function cloudUI() { const el = $('#cloudLine'); if (el) el.innerHTML = cloudText(); }
+ACT.syncNow = () => syncNow();
+window.addEventListener('online', () => scheduleSync(500));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(300); });
+// 登出前：先把沒上傳的傳完；都在雲端了就把手機上的清掉（下次登入會拉回來），還沒傳完就留著
+async function flushBeforeLogout() {
+  if (pendingCount()) await syncNow();
+  if (pendingCount()) return false;
+  syncApplying = true; ['trips', 'pocket', 'prefs', 'meals', 'syncMeta'].forEach(k => LS.del(k)); syncApplying = false;
+  return true;
+}
+
 /* ================= 首頁：登入入口 ================= */
 const baseHome = routes.home;
 routes.home = () => {
   let h = baseHome();
-  if (API_URL) h = h.replace(`<button class="link" data-go="prefs">吃喝玩偏好</button>`, (loggedIn() ? `<div class="hint" style="text-align:center">已登入為「${esc(session().user.name)}」</div>` : `<div class="hint" style="text-align:center">揪團才需要登入 · <button class="link" style="display:inline;min-height:0;padding:0" data-go="login">登入</button></div>`) + `<button class="link" data-go="prefs">吃喝玩偏好</button>`);
+  if (API_URL) h = h.replace(`<button class="link" data-go="prefs">吃喝玩偏好</button>`, (loggedIn() ? `<div class="hint" style="text-align:center">已登入為「${esc(session().user.name)}」· 行程和口袋名單自動存雲端</div>` : `<div class="hint" style="text-align:center">登入後資料自動存雲端 · <button class="link" style="display:inline;min-height:0;padding:0" data-go="login">登入</button></div>`) + `<button class="link" data-go="prefs">吃喝玩偏好</button>`);
   return h.replace('存過的行程會放在這裡', '存過的行程、和旅伴一起規劃的團');
 };
 
+if (loggedIn()) scheduleSync(200);
 /* 從主畫面打開時，告訴後端「這個人有主畫面版」 */
 if (isStandalone() && loggedIn() && !session().user.installed) { quiet(api('setInstalled').then(() => { const s = session(); s.user.installed = true; LS.set('session', s); })); }
 /* 從 LINE/FB/IG 打開團連結：先導去 Safari */
