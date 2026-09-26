@@ -695,7 +695,7 @@ routes.trip = (id) => {
   ${multi?`<div class="tabs" role="tablist" style="margin-top:12px">${t.data.days.map((dd,i)=>`<button role="tab" aria-selected="${i===tripDay}" data-act="day" data-i="${i}">第 ${i+1} 天 · ${esc(mdw(dd.date))}</button>`).join('')}</div>`:'<div style="height:12px"></div>'}
   <div class="stack" style="padding:0 16px 16px 8px">${d.stops.map((_,si)=>stopHTML(t,tripDay,si)).join('')}</div>
   ${multi && tripDay<t.data.days.length-1?`<div class="pad"><button class="btn2" style="width:100%" data-act="day" data-i="${tripDay+1}">看第 ${tripDay+2} 天</button></div>`:''}
-  <div class="pad" style="padding-bottom:40px;margin-top:12px"><button class="btn2" style="width:100%;color:var(--mute);border-style:dashed" data-act="upgrade">升級成團（揪團功能開發中）</button></div>`;
+  <div class="pad" style="padding-bottom:40px;margin-top:12px;display:flex;flex-direction:column;gap:8px">${t.saved?`<button class="link" style="color:var(--bad)" data-act="delTrip" data-id="${esc(t.id)}">刪除這份行程</button>`:''}<button class="btn2" style="width:100%;color:var(--mute);border-style:dashed" data-act="upgrade">升級成團，邀旅伴一起排</button></div>`;
 };
 let curTripId = null;
 routes.trip_after = id => { curTripId = id; };
@@ -744,9 +744,10 @@ ACT.dupTrip = el => {
 };
 ACT.delTrip = el => {
   const id = el.dataset.id;
-  openSheet(`<div class="pad stack"><b style="font-size:18px">確定刪除？</b><div class="note terra">刪掉就找不回來了（只存在這支手機）。</div><button class="btn terra" data-act="delTrip2" data-id="${esc(id)}">刪除</button><button class="link" data-act="closeSheet">不要</button></div>`);
+  const tt = getTrip(id);
+  openSheet(`<div class="pad stack"><b style="font-size:18px">刪除「${esc(tt?tt.title:'')}」？</b><div class="note terra">刪掉就找不回來了（只存在這支手機）。</div><button class="btn terra" data-act="delTrip2" data-id="${esc(id)}">刪除</button><button class="link" data-act="closeSheet">不要</button></div>`);
 };
-ACT.delTrip2 = el => { LS.set('trips', trips().filter(t=>t.id!==el.dataset.id)); toast('已刪除'); go('mytrips'); };
+ACT.delTrip2 = el => { LS.set('trips', trips().filter(t=>t.id!==el.dataset.id)); closeSheet(); toast('已刪除'); if(location.hash==='#mytrips') render(); else go('mytrips'); };
 
 /* swap sheet */
 ACT.swap = el => {
@@ -843,11 +844,14 @@ routes.mytrips = () => {
   const all = trips(); const today = ymd(new Date());
   const draft = LS.get('draftTrip', null);
   const card = t => { const st=tripStats(t); const isToday = t.data.days.some(d=>d.date===today);
-    return `<button class="card" data-go="trip/${enc(t.id)}" style="padding:14px 16px;display:flex;align-items:center;gap:12px;text-align:left;width:100%">
-      <span style="width:8px;align-self:stretch;border-radius:4px;background:var(--blue)"></span>
-      <span style="display:flex;flex-direction:column;gap:4px;flex:1"><span style="font-size:17px;font-weight:700">${esc(t.title)}</span><span class="sub">${esc(mdw(t.data.days[0].date))}${t.data.days.length>1?' 出發 · '+t.data.days.length+' 天':''} · ${st.n} 站 · ${esc(t.mode)}</span></span>
-      ${isToday?'<span class="tag" style="background:var(--amber-l);color:var(--amber)">今天</span>':''}
-    </button>`; };
+    return `<div class="card" style="display:flex;align-items:stretch">
+      <button data-go="trip/${enc(t.id)}" style="flex:1;padding:14px 4px 14px 16px;display:flex;align-items:center;gap:12px;text-align:left;border:none;background:none;min-width:0">
+        <span style="width:8px;align-self:stretch;border-radius:4px;background:var(--blue)"></span>
+        <span style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0"><span style="font-size:17px;font-weight:700">${esc(t.title)}</span><span class="sub">${esc(mdw(t.data.days[0].date))}${t.data.days.length>1?' 出發 · '+t.data.days.length+' 天':''} · ${st.n} 站 · ${esc(t.mode)}</span></span>
+        ${isToday?'<span class="tag" style="background:var(--amber-l);color:var(--amber)">今天</span>':''}
+      </button>
+      <button data-act="delTrip" data-id="${esc(t.id)}" aria-label="刪除「${esc(t.title)}」" style="width:52px;border:none;background:none;color:var(--faint);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    </div>`; };
   const upcoming = all.filter(t=>t.data.days[t.data.days.length-1].date>=today).sort((a,b)=>a.data.days[0].date.localeCompare(b.data.days[0].date));
   const past = all.filter(t=>t.data.days[t.data.days.length-1].date<today);
   return header('我的行程','home') + `<div class="pad stack">${typeof groupWarn==='function'? groupWarn():''}
