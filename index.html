@@ -267,6 +267,7 @@ routes.nearby = () => {
     <div class="chips">${catBtns}</div>
     <a class="btn terra" ${has?`href="${esc(nearLink(near.cat))}" target="_blank" rel="noopener"`:''} style="${has?'':'background:#c9c5bc;pointer-events:none'}">在 Google 地圖看附近「${esc(near.cat)}」</a>
     <div class="hint">星等、評論數、營業中，都在 Google 地圖裡看</div>
+    ${pocketBox()}
     <h2 class="sec">看網友怎麼說</h2>
     <div style="display:flex;gap:8px">
       <a class="btn2" style="flex:1" ${areaName?`href="${esc(gm.web(areaName+' '+near.cat+' 推薦'))}" target="_blank" rel="noopener"`:'aria-disabled="true"'}>Google 搜尋</a>
@@ -277,6 +278,81 @@ routes.nearby = () => {
   </div>`;
 };
 routes.nearby_after = () => { if(near.state==='idle') ACT.nearLocate(); };
+/* 路過找吃：在 Google 地圖找到的店，貼回來處理 */
+const pocket = () => LS.get('pocket', []);
+function pocketBox(){
+  const list = pocket();
+  return `<section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+    <b style="font-size:17px">找到想去的？貼回來</b>
+    <span class="hint" style="margin-top:-4px">在 Google 地圖點進那家店 →「分享」→「複製連結」，貼在下面。</span>
+    <textarea id="pkUrl" class="inp" data-resolve="pkName|pkNote" style="min-height:64px;font-family:inherit;font-size:15px" placeholder="長按貼上 Google 地圖連結">${esc(near.pkUrl||'')}</textarea>
+    <input id="pkName" class="inp" placeholder="店名（貼上連結後自動帶入）" value="${esc(near.pkName||'')}">
+    <div id="pkNote" class="hint" style="color:var(--amber2)"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn2" data-act="pkNav">導航過去</button>
+      <button class="btn2" data-act="pkSave">存到口袋名單</button>
+      <button class="btn2" data-act="pkTrip">加進我的行程</button>
+      <button class="btn2" data-act="pkGroup">加進團的清單</button>
+    </div>
+  </section>
+  ${list.length?`<h2 class="sec">口袋名單（${list.length}）</h2><div class="card list">${list.map((p,i)=>`<div class="rowitem" style="gap:6px;padding-right:4px">
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</b><span class="sub" style="font-size:12px">${esc(p.at||'')}</span></span>
+      <a class="act" style="border:none" href="${esc(gm.dir(p.name, 'driving'))}" target="_blank" rel="noopener">導航</a>
+      <a class="act" style="border:none" href="${esc(p.url||gm.search(p.name))}" target="_blank" rel="noopener">看評價</a>
+      <button class="act" style="border:none;color:var(--faint)" data-act="pkDel" data-i="${i}" aria-label="從口袋名單刪掉${esc(p.name)}">✕</button></div>`).join('')}</div>`:''}`;
+}
+document.addEventListener('input', e=>{ if(e.target.id==='pkUrl') near.pkUrl=e.target.value; if(e.target.id==='pkName') near.pkName=e.target.value; });
+document.addEventListener('change', e=>{ if(e.target.id==='pkName') near.pkName=e.target.value; });
+function pkRead(){
+  const raw = ($('#pkUrl').value||'').trim(); const p = parseShared(raw);
+  const name = ($('#pkName').value||'').trim() || p.name;
+  if(!name){ $('#pkNote').textContent = raw? '請在「店名」打一下這家店的名字' : '先貼上 Google 地圖連結'; ($('#pkName')).focus(); return null; }
+  return {name, url:p.url||'', area:p.area||'', type: /咖啡|手搖|甜點/.test(near.cat)?'喝':'吃'};
+}
+ACT.pkNav = () => { const p=pkRead(); if(!p) return; window.open(p.url || gm.dir(p.name+' '+(p.area||''), 'driving'), '_blank'); };
+ACT.pkSave = () => { const p=pkRead(); if(!p) return; const l=pocket(); const d=new Date(); l.unshift({...p, at:(d.getMonth()+1)+'/'+d.getDate()+' 存的'}); LS.set('pocket', l.slice(0,50)); near.pkUrl=''; near.pkName=''; toast('存到口袋名單了'); render(); };
+ACT.pkDel = el => { const l=pocket(); l.splice(+el.dataset.i,1); LS.set('pocket', l); render(); };
+ACT.pkTrip = () => {
+  const p=pkRead(); if(!p) return; window.__pk = p;
+  const today = ymd(new Date());
+  const list = trips().filter(t=>t.data.days[t.data.days.length-1].date>=today);
+  openSheet(`<div class="pad stack"><b style="font-size:18px">「${esc(p.name)}」加進哪份行程？</b>
+    ${list.length?`<div class="card list">${list.map(t=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pkTrip2" data-id="${esc(t.id)}"><span style="flex:1"><b>${esc(t.title)}</b><br><span class="sub">${esc(mdw(t.data.days[0].date))}</span></span>${ICON.chev}</button>`).join('')}</div>`:'<div class="sub">還沒有要去的行程。</div>'}
+    <button class="btn2" data-act="pkTrip2" data-id="new">開一份今天的新行程</button>
+    <button class="link" data-act="closeSheet">取消</button></div>`);
+};
+ACT.pkTrip2 = el => {
+  const p = window.__pk; const now = new Date(); const tm = fromMin(Math.ceil((now.getHours()*60+now.getMinutes())/15)*15);
+  const stop = {time:tm, name:p.name, area:p.area, type:p.type, meal:null, stay_min:60, note:'路過找吃加的', open_status:'unknown', hours:'', parking:null, legs:[], alternatives:[], mapUrl:p.url};
+  let t;
+  if(el.dataset.id==='new'){
+    const d = ymd(now);
+    t = {id:uid(), title:(near.area||near.manual||'路過')+' '+mdw(d), place:near.area||near.manual||'', mode:'開車', span:'半天', data:{title:'', days:[{day:1, date:d, stops:[stop]}]}, saved:true, createdAt:Date.now()};
+    t.original = JSON.parse(JSON.stringify(t.data));
+  } else {
+    t = getTrip(el.dataset.id); const today = ymd(now);
+    const d = t.data.days.find(x=>x.date===today) || t.data.days[0];
+    d.stops.push(stop); d.stops.sort((a,b)=>toMin(a.time)-toMin(b.time));
+  }
+  saveTrip(t); closeSheet(); toast('加進「'+t.title+'」了'); go('trip/'+t.id);
+};
+ACT.pkGroup = async el => {
+  const p=pkRead(); if(!p) return;
+  if(!API_URL || typeof loggedIn!=='function' || !loggedIn()){ toast('要先登入才能加進團'); go('login'); return; }
+  window.__pk = p;
+  try{
+    const d = await api('myTrips');
+    if(!d.trips.length){ toast('你還沒有進行中的團'); return; }
+    openSheet(`<div class="pad stack"><b style="font-size:18px">「${esc(p.name)}」加進哪一團的清單？</b>
+      <div class="card list">${d.trips.map(t=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pkGroup2" data-id="${esc(t.tripId)}"><span style="flex:1"><b>${esc(t.title)}</b><br><span class="sub">${t.stage==='collect'?'收集中':'會先進候補'}</span></span>${ICON.chev}</button>`).join('')}</div>
+      <button class="link" data-act="closeSheet">取消</button></div>`);
+  }catch(e){ toast(e.message); }
+};
+ACT.pkGroup2 = async el => {
+  const p = window.__pk;
+  try{ const r = await api('addPlace', {tripId:el.dataset.id, name:p.name, type:p.type, note:p.url && p.url.length<90?'地圖：'+p.url:''}); closeSheet(); toast(r.status==='backlog'?'加進候補了':'加進清單了'); }
+  catch(e){ toast(e.message); }
+};
 function nearLink(kw){
   if(near.manual) return gm.search(near.manual+' '+kw);
   return gm.near(kw, near.lat.toFixed(6), near.lng.toFixed(6));
@@ -794,18 +870,21 @@ ACT.doSwap = el => {
   putTrip(t); closeSheet(); render(); toast('換成「'+a.name+'」');
 };
 document.addEventListener('input', e=>{
-  if(e.target.id!=='swapName') return;
-  const p = parseShared(e.target.value.trim()); const t=$('#swapTitle'); const n=$('#swapNote');
-  if(p.name){ t.value = p.name; n.textContent=''; }
+  // 貼 Google 地圖連結的框：data-resolve="店名欄id|提示id"
+  const cfg = e.target.id==='swapName' ? 'swapTitle|swapNote' : e.target.dataset.resolve;
+  if(!cfg) return;
+  const [tid, nid] = cfg.split('|'); const box = e.target;
+  const p = parseShared(box.value.trim()); const t=document.getElementById(tid); const n=document.getElementById(nid);
+  if(p.name){ t.value = p.name; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
   else if(p.url){
     t.value=''; n.textContent='讀取店名中…';
-    const mine = e.target.value;
+    const mine = box.value;
     (typeof api==='function' && API_URL ? api('resolveMap',{url:p.url}) : Promise.reject()).then(r=>{
-      if($('#swapName') && $('#swapName').value===mine){
-        if(r.name){ $('#swapTitle').value=r.name; $('#swapNote').textContent=''; }
-        else { $('#swapNote').textContent='這個連結讀不到店名，請在上面「店名」打一下。'; $('#swapTitle').focus(); }
+      if(box.isConnected && box.value===mine){
+        if(r.name){ t.value=r.name; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
+        else { n.textContent='這個連結讀不到店名，請在「店名」打一下。'; t.focus(); }
       }
-    }).catch(()=>{ if($('#swapNote')){ $('#swapNote').textContent='讀不到店名（可能沒網路），請在上面「店名」打一下。'; } });
+    }).catch(()=>{ if(n.isConnected){ n.textContent='讀不到店名（可能沒網路），請在「店名」打一下。'; } });
   }
 });
 function parseShared(text){
