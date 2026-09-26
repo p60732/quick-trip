@@ -1,445 +1,948 @@
 <!doctype html>
-<html lang="zh-Hant-TW">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f3f6fb">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
-<title>說走就走小旅行</title>
-<link rel="stylesheet" href="css/style.css?v=efd12bde">
+<title>說走就走－出發吧</title>
+<meta name="description" content="路過找吃、給一個地點就排出吃喝玩行程">
+<meta name="theme-color" content="#f3f1ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="出發吧">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#f3f1ec;--card:#ffffff;--line:#e4dfd6;--line2:#eeeae3;--ink:#3c3f3d;--ink2:#4a4d49;--mute:#5d605b;--faint:#8a8d88;
+  --sage:#42605a;--sage-d:#2f4742;--sage-l:#e7efec;
+  --blue:#4f6a82;--blue-d:#3c566d;--blue-l:#e3eaf1;
+  --terra:#9a6a53;--terra-d:#6e3f2c;--terra-l:#f4e7e0;
+  --amber-l:#f6ecd2;--amber:#5a430c;--amber2:#6e5210;
+  --ok-l:#e3efe6;--ok:#2a5c43;--bad:#8a4a33;
+  --drink-l:#efe8d8;--drink:#7a6330;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',-apple-system,'PingFang TC',sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh}
+a{color:var(--sage);text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--ink)}
+.app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+header.top{display:flex;align-items:center;gap:4px;padding:calc(12px + env(safe-area-inset-top)) 12px 8px 8px;position:sticky;top:0;background:var(--bg);z-index:5}
+header.top h1{margin:0;font-size:21px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iconbtn{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--ink);border-radius:12px}
+.hbtn{min-height:44px;padding:0 10px;border:none;background:transparent;font-size:15px;font-weight:700;color:var(--sage);display:flex;align-items:center}
+.pad{padding:0 16px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px}
+.btn{width:100%;min-height:56px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:16px;background:var(--sage);color:#fff;font-size:18px;font-weight:700;padding:0 16px;text-align:center}
+.btn.blue{background:var(--blue)}.btn.terra{background:var(--terra)}
+.btn:disabled{background:#c9c5bc;color:#fff}
+.btn2{min-height:48px;display:flex;align-items:center;justify-content:center;border:1.5px solid #cdd9d5;border-radius:14px;background:#fff;font-size:16px;font-weight:700;color:var(--sage);padding:0 14px;text-align:center}
+.link{min-height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--sage);background:none;border:none}
+.foot{padding:12px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:6px;position:sticky;bottom:0;background:linear-gradient(to bottom,rgba(243,241,236,0),var(--bg) 18px)}
+.hint{font-size:13px;line-height:1.55;color:var(--mute)}
+.lbl{font-size:16px;font-weight:700;margin:0}
+.sub{font-size:14px;color:var(--mute)}
+h2.sec{margin:8px 0 0;font-size:16px;font-weight:700}
+.field{display:flex;flex-direction:column;gap:8px}
+.inp{height:52px;padding:0 14px;border:1.5px solid #cfd8e0;border-radius:12px;background:#fff;font-size:16px;width:100%}
+textarea.inp{height:auto;min-height:180px;padding:12px 14px;font-size:14px;line-height:1.5;font-family:ui-monospace,Menlo,monospace}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 14px;border:1.5px solid #d6d1c7;border-radius:999px;background:#fff;font-size:15px;display:flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{border-color:var(--sage);background:var(--sage-l);color:var(--sage);font-weight:700}
+.chip.blue[aria-pressed="true"]{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+.chip.terra[aria-pressed="true"]{border-color:var(--terra);background:var(--terra-l);color:var(--terra-d)}
+.seg{display:grid;gap:8px}
+.seg button{height:48px;border:1.5px solid #d6d1c7;border-radius:12px;background:#fff;font-size:15px}
+.seg button[aria-pressed="true"]{border-color:var(--blue);background:var(--blue-l);color:var(--blue);font-weight:700}
+.note{padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.6}
+.note.amber{background:var(--amber-l);color:var(--amber2)}.note.amber b{color:var(--amber)}
+.note.ok{background:var(--ok-l);color:var(--ok)}
+.note.terra{background:var(--terra-l);color:var(--terra-d)}
+.note.blue{background:var(--blue-l);color:var(--blue-d)}
+.steps{display:flex;gap:6px;font-size:13px;padding:4px 16px 12px;align-items:center}
+.steps span{padding:4px 10px;border-radius:999px;color:var(--blue)}
+.steps span.on{background:var(--blue);color:#fff;font-weight:700}
+.steps span.done{background:var(--blue-l)}
+.tag{padding:2px 10px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap}
+.t-eat{background:var(--terra-l);color:#8a5a44}.t-drink{background:var(--drink-l);color:var(--drink)}.t-play{background:var(--sage-l);color:var(--sage)}.t-stay{background:var(--blue-l);color:var(--blue)}.t-go{background:#ecebe6;color:var(--mute)}
+.stop{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.stop .row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.stop .name{font-size:18px;font-weight:700;word-break:break-word}
+.status{font-size:14px;font-weight:700}
+.s-open{color:var(--ok)}.s-unk{color:var(--amber2)}.s-closed{color:var(--bad)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.act{min-height:40px;padding:0 12px;border:1.5px solid #cdd9d5;border-radius:10px;background:#fff;font-size:14px;font-weight:700;color:var(--sage);display:flex;align-items:center}
+.park{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--blue-l);border-radius:12px}
+.pbadge{width:28px;height:28px;flex-shrink:0;border-radius:7px;background:var(--blue);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px}
+.park span.t{flex:1;font-size:14px;color:var(--blue-d);line-height:1.45}
+.park a{font-size:14px;font-weight:700;color:var(--blue);min-height:36px;display:flex;align-items:center}
+.timecol{display:grid;grid-template-columns:54px 1fr;gap:10px;align-items:start}
+.timecol .tm{font-size:16px;font-weight:700;padding-top:14px;text-align:right;color:var(--ink2)}
+.leg{margin-left:64px;padding:10px 12px;border-left:3px dashed #b9c6d3;display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--blue-d)}
+.leg b{color:var(--blue)}
+.tabs{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto}
+.tabs button{min-height:44px;padding:0 14px;border:1.5px solid #d6d1c7;border-radius:12px;background:#fff;white-space:nowrap;font-size:15px}
+.tabs button[aria-selected="true"]{border-color:var(--blue);background:var(--blue-l);color:var(--blue);font-weight:700}
+.bigcard{display:flex;align-items:center;gap:16px;padding:20px;background:#fff;border-radius:20px;border:1px solid var(--line);color:var(--ink);text-align:left;width:100%}
+.bigcard .ic{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bigcard b{font-size:19px;display:block}
+.bigcard span.d{font-size:14px;color:var(--mute)}
+.list .rowitem{min-height:60px;padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2);color:var(--ink)}
+.list .rowitem:last-child{border-bottom:none}
+.sheet-bg{position:fixed;inset:0;background:rgba(40,42,40,.42);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:480px;max-height:88vh;overflow:auto;border-radius:22px 22px 0 0;padding:8px 0 calc(16px + env(safe-area-inset-bottom))}
+.grab{width:40px;height:5px;border-radius:3px;background:#cfcac0;margin:6px auto 10px}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2f3331;color:#fff;padding:12px 18px;border-radius:14px;font-size:15px;z-index:40;max-width:88vw;text-align:center}
+.mealrow{display:grid;grid-template-columns:auto 1fr 110px;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line2)}
+.mealrow:last-child{border-bottom:none}
+.mealrow input[type=time]{height:44px;border:1.5px solid #cfd8e0;border-radius:10px;padding:0 8px;background:#fff;width:100%}
+.mealrow select{height:44px;border:1.5px solid #cfd8e0;border-radius:10px;background:#fff;padding:0 6px}
+.switch{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px}
+.switch input{width:22px;height:22px;accent-color:var(--sage)}
+.cur{border:2px solid var(--blue)}
+.done-row{font-size:14px;color:var(--mute);padding:4px 16px}
+.hide{display:none!important}
+@media (prefers-color-scheme: dark){ /* app stays light: map-style outdoor use reads better in light */ }
+</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="appbar" id="acct-top">
-    <div class="appbar-row">
-      <div class="brand">
-        <span class="logo" aria-hidden="true">走</span>
-        <div class="brand-txt"><b>說走就走小旅行</b>
-          <small id="brand-tag">三分鐘排好你的行程</small>
-          <button type="button" class="space-line hidden" id="space-bar" aria-label="現在用哪一份（按一下切換）" aria-controls="acct-menu"><span class="space-name" id="space-name"></span><span class="space-status" id="space-status"></span></button>
-        </div>
-      </div>
-      <div class="acct-wrap">
-        <button type="button" class="acct-chip out" id="acct-chip" aria-haspopup="dialog" aria-expanded="false" aria-controls="acct-menu">登入</button>
-      </div>
-      <div class="acct-menu hidden" id="acct-menu" role="dialog" aria-label="帳號與切換">
-        <div class="menu-top">
-          <div class="acct-menu-name" id="acct-menu-name"></div>
-          <button type="button" class="menu-logout hidden" id="btn-logout">登出</button>
-        </div>
-        <button type="button" class="menu-item hidden" id="btn-menu-login">登入／建立帳號</button>
-        <div class="menu-sec">
-          <div class="menu-h">現在用哪一份</div>
-          <div id="space-list" class="space-list"></div>
-          <button type="button" class="menu-item link" id="btn-acct-groups">建立群組、邀請旅伴 →</button>
-        </div>
-        <div class="menu-sec" id="acct-card">
-          <details class="menu-more" id="acct-in">
-            <summary>改密碼</summary>
-            <label class="f"><span>目前的密碼</span><input type="password" id="acct-old" maxlength="64" autocomplete="current-password"></label>
-            <label class="f"><span>新密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-new" maxlength="64" autocomplete="new-password"></label>
-            <div class="btns"><button type="button" class="btn small" id="btn-setpass">更新密碼</button></div>
-          </details>
-          <div class="msg" id="msg-acct" role="status"></div>
-        </div>
-      </div>
-    </div>
-    <nav class="tabs" role="tablist">
-      <button type="button" role="tab" id="tab-plan" aria-selected="true">規劃</button>
-      <button type="button" role="tab" id="tab-wish" aria-selected="false">願望清單 <span id="wish-count"></span></button>
-      <button type="button" role="tab" id="tab-saved" aria-selected="false">行程 <span id="saved-count"></span></button>
-      <button type="button" role="tab" id="tab-group" aria-selected="false">旅伴</button>
-    </nav>
+<div class="app" id="app"></div>
+<div id="layer"></div>
+<script>
+'use strict';
+/* 揪團後端（Google Apps Script 網頁應用程式網址），部署後貼在這裡 */
+const API_URL = 'https://script.google.com/macros/s/AKfycbziZY2SgwGr_hPJO06DJa5Ua2WN8eCgv5ssjzHcxN4WCvOu3LCaGr6o0ueXQPmE_7rs/exec';
+/* ================= storage ================= */
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem('lg.'+k); return v==null? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('lg.'+k, JSON.stringify(v)); return true; }catch(e){ toast('手機空間不足或瀏覽器擋住儲存'); return false; } },
+  del(k){ try{ localStorage.removeItem('lg.'+k);}catch(e){} }
+};
+const DEFAULT_PREFS = {
+  eat:{kinds:['在地小吃'], price:'一般', avoid:'', high:true, alts:true},
+  drink:{kinds:['咖啡'], env:['有座位能休息'], alts:true},
+  play:{kinds:['自然步道','老街文化'], walk:'普通', rain:true, alts:true}
+};
+const DEFAULT_MEALS = [
+  {k:'b', label:'早餐', time:'08:00', dur:45, on:true},
+  {k:'l', label:'午餐', time:'12:00', dur:60, on:true},
+  {k:'t', label:'下午茶', time:'15:00', dur:30, on:false},
+  {k:'d', label:'晚餐', time:'18:00', dur:90, on:true},
+  {k:'n', label:'宵夜', time:'21:00', dur:30, on:false}
+];
+const prefs = () => Object.assign({}, DEFAULT_PREFS, LS.get('prefs', {}));
+const meals = () => LS.get('meals', DEFAULT_MEALS);
+const trips = () => LS.get('trips', []);
+function saveTrip(t){
+  const all = trips(); const i = all.findIndex(x=>x.id===t.id);
+  t.updatedAt = Date.now();
+  if(i>=0) all[i]=t; else all.unshift(t);
+  LS.set('trips', all);
+}
+function getTrip(id){
+  if(id==='draft') return LS.get('draftTrip', null);
+  return trips().find(t=>t.id===id) || null;
+}
+function putTrip(t){ if(t.id==='draft') LS.set('draftTrip', t); else saveTrip(t); }
+
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const enc = encodeURIComponent;
+const WD = ['日','一','二','三','四','五','六'];
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseYmd(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function mdw(s){ if(!s) return ''; const d=parseYmd(s); return (d.getMonth()+1)+'/'+d.getDate()+'（'+WD[d.getDay()]+'）'; }
+function addDays(s,n){ const d=parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); }
+function toMin(t){ const m=/^(\d{1,2}):(\d{2})/.exec(t||''); return m? (+m[1])*60+(+m[2]) : null; }
+function fromMin(n){ n=((n%1440)+1440)%1440; return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+const ICON = {
+  back:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  close:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  pin:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  go:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  list:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  chev:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8d88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>'
+};
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status'); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 2400); }
+async function copyText(s){
+  try{ await navigator.clipboard.writeText(s); return true; }
+  catch(e){
+    const ta=document.createElement('textarea'); ta.value=s; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); return ok;
+  }
+}
+function header(title, back, right=''){
+  return `<header class="top">${back?`<button class="iconbtn" aria-label="返回" data-go="${esc(back)}">${ICON.back}</button>`:'<span style="width:8px"></span>'}<h1>${title}</h1>${right}</header>`;
+}
+/* maps links */
+const gm = {
+  search: (q) => 'https://www.google.com/maps/search/?api=1&query='+enc(q),
+  near: (q, lat, lng) => 'https://www.google.com/maps/search/'+enc(q)+'/@'+lat+','+lng+',16z',
+  dir: (dest, mode) => 'https://www.google.com/maps/dir/?api=1&destination='+enc(dest)+'&travelmode='+(mode||'driving'),
+  transit: (from, to) => 'https://www.google.com/maps/dir/?api=1&origin='+enc(from)+'&destination='+enc(to)+'&travelmode=transit',
+  web: (q) => 'https://www.google.com/search?q='+enc(q)
+};
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const inApp = /Line\/|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
+
+/* ================= router ================= */
+const routes = {};
+function go(h){ if(location.hash==='#'+h) render(); else location.hash = h; }
+window.addEventListener('hashchange', render);
+function render(){
+  closeSheet();
+  const h = location.hash.slice(1) || 'home';
+  const [name, ...args] = h.split('/');
+  const fn = routes[name] || routes.home;
+  $('#app').innerHTML = fn(...args.map(decodeURIComponent));
+  window.scrollTo(0,0);
+  const after = routes[name+'_after']; if(after) after(...args.map(decodeURIComponent));
+}
+document.addEventListener('click', e=>{
+  const g = e.target.closest('[data-go]'); if(g){ e.preventDefault(); go(g.dataset.go); return; }
+  const a = e.target.closest('[data-act]'); if(a){ e.preventDefault(); const fn = ACT[a.dataset.act]; if(fn){ const r = fn(a, e); if(r && r.catch) r.catch(()=>{}); } }
+});
+const ACT = {};
+
+/* ================= HOME ================= */
+routes.home = () => {
+  const n = trips().length;
+  return `
+  <div style="padding:calc(40px + env(safe-area-inset-top)) 20px 12px">
+    <div style="font-size:15px;font-weight:700;color:var(--sage)">說走就走－出發吧</div>
+    <h1 style="margin:6px 0 4px;font-size:30px">今天想去哪？</h1>
+    <div class="sub">選一個，馬上開始</div>
   </div>
-  <header class="hero" id="hero">
-    <span class="eyebrow-pill"><i class="live"></i>說走就走 · 三分鐘排好你的行程</span>
-    <h1>給一個起點，<br><em>剩下的</em>交給說走就走</h1>
-    <p>輸入出發地與一個想去的點，選自駕或公共交通，把附近可吃可玩排成一整段行程。</p>
-  </header>
-
-  <div class="card glass" id="login-card">
-    <h2 class="step-h">先登入再開始</h2>
-    <p class="hint">登入後才能規劃行程、存願望清單和跟旅伴共用。資料都存在你的帳號裡，換手機、換瀏覽器都拿得回來。第一次用就按「建立帳號」。</p>
-    <p class="hint2 ok-text hidden" id="login-invite"></p>
-    <p class="hint2 warn-text hidden" id="acct-legacy">這支手機上有之前加入的群組，登入後會自動搬到你的帳號。</p>
-    <div class="row stack">
-      <label class="f"><span>名字 <small>（不能跟別人重複）</small></span><input type="text" id="acct-name" maxlength="20" autocomplete="username" placeholder="例：佩芝"></label>
-      <label class="f"><span>密碼 <small>（至少 4 字）</small></span><input type="password" id="acct-pass" maxlength="64" autocomplete="current-password"></label>
-    </div>
-    <div class="btns">
-      <button type="button" class="btn" id="btn-login">登入</button>
-      <button type="button" class="btn ghost" id="btn-signup">第一次用：建立帳號</button>
-    </div>
-    <div class="msg" id="msg-login" role="status"></div>
+  ${inApp?`<div class="pad" style="margin-bottom:12px"><div class="note amber"><b>建議改用 Safari 打開</b><br>在 LINE／FB 裡開，存的行程可能會不見。點右下角「⋯」→「用預設瀏覽器開啟」。</div></div>`:''}
+  <div class="pad stack">
+    <button class="bigcard" data-go="nearby"><span class="ic" style="background:var(--terra-l);color:var(--terra)">${ICON.pin}</span><span><b>路過找吃</b><span class="d">人在外面，馬上找附近吃喝</span></span></button>
+    <button class="bigcard" data-go="form"><span class="ic" style="background:var(--blue-l);color:var(--blue)">${ICON.go}</span><span><b>直接出發</b><span class="d">給一個地點，排出吃喝玩行程</span></span></button>
+    <button class="bigcard" data-go="mytrips"><span class="ic" style="background:var(--sage-l);color:var(--sage)">${ICON.list}</span><span><b>我的行程</b><span class="d">${n? '存了 '+n+' 份行程' : '存過的行程會放在這裡'}</span></span></button>
   </div>
-  <div class="msg" id="msg-top" role="status"></div>
+  <div class="pad" style="margin-top:20px;display:flex;flex-direction:column;gap:4px">
+    <button class="link" data-go="prefs">吃喝玩偏好</button>
+    <button class="link" data-go="meals">用餐模板</button>
+  </div>
+  ${installHint()}
+  `;
+};
+function installHint(){
+  if(isStandalone() || !isIOS) return '';
+  return `<div class="pad" style="margin-top:12px"><div class="note blue"><b>加到主畫面比較保險</b><br>Safari 7 天沒打開，存在這支手機的行程可能被清掉。按下方「分享」→「加入主畫面」，之後從圖示打開就不會。</div></div>`;
+}
 
-  <!-- 規劃 -->
-  <section id="view-plan">
-    <div class="card glass" id="card-form">
-      <div class="f">
-        <div class="lbl-row">
-          <span class="lbl">出發點</span>
-          <div class="mini-seg" id="f-otype" aria-label="出發地類型">
-            <button type="button" data-v="home" aria-pressed="false">自家</button>
-            <button type="button" data-v="station" aria-pressed="true">車站</button>
-            <button type="button" data-v="hotel" aria-pressed="false">飯店</button>
-            <button type="button" data-v="other" aria-pressed="false">其他</button>
-          </div>
-        </div>
-        <div class="field-ico"><span class="ico ico-from" aria-hidden="true"></span>
-          <input type="text" id="f-otext" maxlength="150" autocomplete="off" aria-label="出發點">
-        </div>
-        <datalist id="station-list"></datalist>
-        <div class="hint2" id="otext-hint"></div>
-      </div>
-
-      <div class="f">
-        <label class="lbl" for="f-destination">想去的點</label>
-        <div class="field-ico"><span class="ico ico-to" aria-hidden="true"></span>
-          <input type="text" id="f-destination" maxlength="100" placeholder="例：九份老街" autocomplete="off">
-        </div>
-      </div>
-
-      <div class="f hidden" id="wish-picks-box"><span class="lbl" id="wish-picks-title">願望清單</span>
-        <div class="chips" id="wish-picks"></div>
-      </div>
-
-      <div class="f">
-        <span class="lbl">交通方式</span>
-        <div class="mode2" id="f-mode">
-          <button type="button" data-v="transit" aria-pressed="true">🚇 公共交通</button>
-          <button type="button" data-v="driving" aria-pressed="false">🚗 自駕</button>
-        </div>
-        <div class="hint2" id="mode-note"></div>
-      </div>
-
-      <div class="pill-row">
-        <button type="button" class="pill" id="pill-days" aria-label="切換天數"></button>
-        <button type="button" class="pill" id="pill-pace" aria-label="切換節奏"></button>
-        <button type="button" class="pill" id="pill-budget" aria-label="切換預算"></button>
-      </div>
-      <button type="button" class="btn go" id="btn-prompt">生成行程 →</button>
-      <div class="msg" id="msg-form" role="status"></div>
-
-      <details class="more" id="more-opts">
-        <summary>更多選項 <small>縣市、日期、時間、人數、飲食、交通細項</small></summary>
-        <div class="more-body">
-          <label class="f"><span>縣市 <small>（空白就讓 Claude 從想去的點判斷）</small></span>
-            <select id="f-city"></select>
-          </label>
-          <label class="f"><span>還想順便去／吃</span>
-            <input type="text" id="f-mustDo" maxlength="200" placeholder="例：想吃老街芋圓、想看海" autocomplete="off">
-          </label>
-          <div class="row">
-            <label class="f"><span>出發日期</span><input type="date" id="f-date"></label>
-            <div class="f"><span class="lbl">天數</span>
-              <div class="seg" id="f-days">
-                <button type="button" data-v="1" aria-pressed="true">一日來回</button>
-                <button type="button" data-v="2" aria-pressed="false">兩天一夜</button>
-              </div>
-            </div>
-          </div>
-          <div class="f"><span class="lbl">交通細項 <small>（可複選，會混合搭配）</small></span>
-            <div class="chips" id="f-transport"></div>
-          </div>
-          <div class="row">
-            <label class="f"><span>最早出發</span><input type="time" id="f-leaveAt"></label>
-            <label class="f"><span>最晚回到出發地</span><input type="time" id="f-backBy"></label>
-          </div>
-          <div class="row">
-            <label class="f"><span>人數</span><input type="number" id="f-people" min="1" max="20" inputmode="numeric"></label>
-            <label class="f"><span>同行</span>
-              <select id="f-who">
-                <option value="">自己</option>
-                <option>情侶／夫妻</option>
-                <option>朋友</option>
-                <option>帶小孩</option>
-                <option>帶長輩</option>
-              </select>
-            </label>
-          </div>
-          <div class="f"><span class="lbl">節奏</span>
-            <div class="seg" id="f-pace">
-              <button type="button" data-v="悠閒，景點少一點、多留休息時間" aria-pressed="false">輕鬆</button>
-              <button type="button" data-v="剛好，景點與休息平衡" aria-pressed="true">剛好</button>
-              <button type="button" data-v="塞滿，能去的都去" aria-pressed="false">塞滿</button>
-            </div>
-          </div>
-          <div class="f"><span class="lbl">想吃什麼 <small>（可複選）</small></span>
-            <div class="chips" id="f-food">
-              <button type="button" class="chip" aria-pressed="false">在地小吃</button>
-              <button type="button" class="chip" aria-pressed="false">老字號</button>
-              <button type="button" class="chip" aria-pressed="false">夜市</button>
-              <button type="button" class="chip" aria-pressed="false">咖啡甜點</button>
-              <button type="button" class="chip" aria-pressed="false">海鮮</button>
-              <button type="button" class="chip" aria-pressed="false">不排隊</button>
-              <button type="button" class="chip" aria-pressed="false">素食</button>
-            </div>
-          </div>
-          <div class="row">
-            <label class="f"><span>每人預算（NT$）</span><input type="number" id="f-budget" min="0" max="100000" inputmode="numeric" placeholder="不限"></label>
-            <label class="f"><span>其他備註</span><input type="text" id="f-extra" maxlength="200" placeholder="例：不想走太多路"></label>
-          </div>
-        </div>
-      </details>
+/* ================= NEARBY ================= */
+const NEAR_CATS = ['小吃','正餐','咖啡','甜點','手搖飲','早午餐','親子餐廳','宵夜'];
+let near = {lat:null,lng:null,acc:null,area:'',manual:'',state:'idle',cat:'小吃'};
+routes.nearby = () => {
+  const ok = near.state==='ok';
+  const failed = near.state==='fail';
+  const areaName = near.manual || near.area;
+  let loc;
+  if(near.state==='locating') loc = `<div class="note blue" role="status">定位中…第一次會問你能不能用位置，請按「允許」。</div>`;
+  else if(ok) loc = `<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:10px"><span style="flex:1"><span class="sub" style="color:var(--ok);font-weight:700">GPS 已定位${near.acc?' · 誤差約 '+Math.round(near.acc)+' 公尺':''}</span><br><b style="font-size:17px">${esc(areaName||'你現在的位置')} 附近</b></span><button class="act" data-act="nearManual">改地點</button></div>`;
+  else loc = `<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      ${failed?`<b style="font-size:17px">沒拿到你的位置</b><span class="hint">可能是沒允許定位。iPhone：設定 › 隱私權與安全性 › 定位服務 › Safari 網站 › 使用 App 期間。也可以直接打地名：</span>`:`<b style="font-size:17px">在哪附近找？</b>`}
+      <div class="field"><label class="lbl" for="nearArea" style="font-size:15px">地名</label><input id="nearArea" class="inp" placeholder="例：內灣、竹北高鐵站" value="${esc(near.manual)}"></div>
+      <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearUseArea">用這個地名</button><button class="btn2" style="flex:1" data-act="nearLocate">${failed?'再定位一次':'用 GPS 定位'}</button></div>
+    </div>`;
+  const has = ok || !!near.manual;
+  const catBtns = NEAR_CATS.map(c=>`<button class="chip terra" aria-pressed="${near.cat===c}" data-act="nearCat" data-c="${c}">${c}</button>`).join('');
+  return header('路過找吃','home') + `<div class="pad stack">
+    ${loc}
+    <a class="park" ${has?`href="${esc(nearLink('停車場'))}" target="_blank" rel="noopener"`:'aria-disabled="true"'} style="padding:14px;${has?'':'opacity:.5'}"><span class="pbadge">P</span><span class="t"><b style="font-size:16px">找附近停車場</b><br>開車先停好車，再慢慢找吃的</span>${ICON.chev}</a>
+    <h2 class="sec">想吃什麼？</h2>
+    <div class="hint" style="margin-top:-6px">點一下選類別，再按下面的按鈕開 Google 地圖看評價</div>
+    <div class="chips">${catBtns}</div>
+    <a class="btn terra" ${has?`href="${esc(nearLink(near.cat))}" target="_blank" rel="noopener"`:''} style="${has?'':'background:#c9c5bc;pointer-events:none'}">在 Google 地圖看附近「${esc(near.cat)}」</a>
+    <div class="hint">星等、評論數、營業中，都在 Google 地圖裡看</div>
+    <h2 class="sec">看網友怎麼說</h2>
+    <div style="display:flex;gap:8px">
+      <a class="btn2" style="flex:1" ${areaName?`href="${esc(gm.web(areaName+' '+near.cat+' 推薦'))}" target="_blank" rel="noopener"`:'aria-disabled="true"'}>Google 搜尋</a>
+      <a class="btn2" style="flex:1" ${areaName?`href="${esc(gm.web(areaName+' '+near.cat+' 推薦 (site:ptt.cc OR site:dcard.tw)'))}" target="_blank" rel="noopener"`:'aria-disabled="true"'}>只看 PTT／Dcard</a>
     </div>
+    <div class="hint">${areaName?`會搜「${esc(areaName)} ${esc(near.cat)} 推薦」，類別跟著上面選的變`:'定位後會自動帶入地名；拿不到地名時，請在上面打地名'}</div>
+    <div style="height:24px"></div>
+  </div>`;
+};
+routes.nearby_after = () => { if(near.state==='idle') ACT.nearLocate(); };
+function nearLink(kw){
+  if(near.manual) return gm.search(near.manual+' '+kw);
+  return gm.near(kw, near.lat.toFixed(6), near.lng.toFixed(6));
+}
+ACT.nearCat = el => { near.cat = el.dataset.c; render(); };
+ACT.nearManual = () => { near.state='manual'; render(); setTimeout(()=>$('#nearArea')&&$('#nearArea').focus(),50); };
+ACT.nearUseArea = () => { const v=$('#nearArea').value.trim(); if(!v){ toast('先打一個地名'); return; } near.manual=v; near.state= near.lat? 'ok':'manual'; render(); };
+ACT.nearLocate = () => {
+  if(!navigator.geolocation){ near.state='fail'; render(); return; }
+  near.state='locating'; near.manual=''; render();
+  navigator.geolocation.getCurrentPosition(async p=>{
+    near.lat=p.coords.latitude; near.lng=p.coords.longitude; near.acc=p.coords.accuracy; near.state='ok'; near.area=''; render();
+    try{
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${near.lat}&lon=${near.lng}&zoom=14&accept-language=zh-TW`);
+      const j = await r.json(); const a = j.address||{};
+      near.area = a.town || a.suburb || a.city_district || a.village || a.city || a.county || '';
+      if(location.hash==='#nearby') render();
+    }catch(e){}
+  }, ()=>{ near.state='fail'; render(); }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+};
 
-    <div class="card glass locked hidden" id="card-copy">
-      <h2 class="card-h">到 Claude 生成</h2>
-      <ol class="steps">
-        <li>按「開啟 Claude」，提示詞已經複製好，貼上送出。</li>
-        <li>在 Claude 的回答右上角按「複製」，貼回下面。</li>
-      </ol>
-      <div class="btns">
-        <button type="button" class="btn" id="btn-copy-open">開啟 Claude</button>
-        <button type="button" class="btn ghost" id="btn-copy">再複製一次</button>
-      </div>
-      <div class="msg" id="msg-copy" role="status"></div>
-      <details class="more slim" id="prompt-box"><summary>看提示詞</summary>
-        <textarea id="prompt-out" readonly aria-label="提示詞"></textarea>
-      </details>
-      <div id="card-paste" class="locked">
-        <textarea id="paste-in" placeholder="把 Claude 的整段回答貼在這裡" aria-label="貼上 Claude 的回答"></textarea>
-        <div class="btns mt"><button type="button" class="btn" id="btn-parse">排成行程</button><button type="button" class="btn ghost" id="btn-paste-clear">清空</button></div>
-        <div class="msg" id="msg-parse" role="status"></div>
-      </div>
+/* ================= PREFS ================= */
+const PREF_OPTS = {
+  eatKinds:['在地小吃','老店','餐廳正餐','夜市','素食','異國料理','親子友善'],
+  price:['省錢','一般','吃好一點'],
+  drinkKinds:['咖啡','手搖飲','茶館','甜點','冰品','酒吧'],
+  drinkEnv:['有座位能休息','有景觀','外帶就好'],
+  playKinds:['自然步道','老街文化','親子','室內展館','拍照景點','溫泉','手作體驗'],
+  walk:['輕鬆','普通','能爬山']
+};
+let prefDraft = null;
+routes.prefs = () => {
+  prefDraft = prefDraft || JSON.parse(JSON.stringify(prefs()));
+  const p = prefDraft;
+  const multi = (path, opts, cls) => `<div class="chips">${opts.map(o=>`<button class="chip ${cls}" aria-pressed="${get(p,path).includes(o)}" data-act="prefMulti" data-p="${path}" data-v="${o}">${o}</button>`).join('')}</div>`;
+  const single = (path, opts, cls) => `<div class="chips">${opts.map(o=>`<button class="chip ${cls}" aria-pressed="${get(p,path)===o}" data-act="prefSingle" data-p="${path}" data-v="${o}">${o}</button>`).join('')}</div>`;
+  const sw = (path, text) => `<label class="switch"><input type="checkbox" data-pref="${path}" ${get(p,path)?'checked':''}>${text}</label>`;
+  const box = (tag, cls, inner) => `<section class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px"><span class="tag ${cls}">${tag}</span></div>${inner}</section>`;
+  return header('吃喝玩偏好', prefBack()) + `<div class="pad stack">
+    <div class="hint">存一次，之後每趟都照這個推薦。可以複選；沒選的類別，AI 就自由推薦。</div>
+    ${box('吃','t-eat',`<span class="lbl">想吃什麼</span>${multi('eat.kinds',PREF_OPTS.eatKinds,'terra')}<span class="lbl">價位</span>${single('eat.price',PREF_OPTS.price,'terra')}
+      <div class="field"><label class="lbl" for="avoid">不吃的東西</label><input id="avoid" class="inp" placeholder="例：牛肉、太辣" value="${esc(p.eat.avoid)}"></div>
+      ${sw('eat.high','只推高評價的店（4.0 星以上，AI 參考）')}${sw('eat.alts','每餐多給 3 家備選，方便換一家')}`)}
+    ${box('喝','t-drink',`<span class="lbl">想喝什麼</span>${multi('drink.kinds',PREF_OPTS.drinkKinds,'')}<span class="lbl">環境</span>${multi('drink.env',PREF_OPTS.drinkEnv,'')}${sw('drink.alts','每站多給 3 家備選')}`)}
+    ${box('玩','t-play',`<span class="lbl">喜歡的類型</span>${multi('play.kinds',PREF_OPTS.playKinds,'')}<span class="lbl">走路強度</span>${single('play.walk',PREF_OPTS.walk,'')}${sw('play.rain','附雨天備案（室內景點）')}${sw('play.alts','每站多給 2 個備選景點')}`)}
+  </div>
+  <div class="foot"><button class="btn" data-act="prefSave">存成我的偏好</button></div>`;
+};
+function prefBack(){ return (sessionStorage.getItem('lg.back')||'home'); }
+function get(o,path){ return path.split('.').reduce((a,k)=>a&&a[k],o); }
+function set(o,path,v){ const ks=path.split('.'); const last=ks.pop(); ks.reduce((a,k)=>a[k],o)[last]=v; }
+ACT.prefMulti = el => { const arr=get(prefDraft,el.dataset.p); const v=el.dataset.v; const i=arr.indexOf(v); if(i>=0) arr.splice(i,1); else arr.push(v); el.setAttribute('aria-pressed', i<0); };
+ACT.prefSingle = el => { const cur=get(prefDraft,el.dataset.p); set(prefDraft,el.dataset.p, cur===el.dataset.v? '' : el.dataset.v); el.parentElement.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed', c.dataset.v===get(prefDraft,el.dataset.p))); };
+ACT.prefSave = () => {
+  document.querySelectorAll('[data-pref]').forEach(c=>set(prefDraft,c.dataset.pref,c.checked));
+  prefDraft.eat.avoid = $('#avoid').value.trim();
+  LS.set('prefs', prefDraft); prefDraft=null; toast('偏好存好了'); go(prefBack());
+};
+
+/* ================= MEAL TEMPLATE ================= */
+routes.meals = () => {
+  const ms = meals();
+  const durOpts = [30,45,60,90,120];
+  return header('我的用餐模板', prefBack()) + `<div class="pad stack">
+    <div class="hint">每次排行程，餐廳都照這些時段放。勾起來的是預設要排的餐；填單時還能臨時勾掉。</div>
+    <div class="card" id="mealList">
+      <div class="mealrow" style="font-size:13px;color:var(--mute);min-height:0;padding-top:12px;padding-bottom:8px"><span>哪一餐</span><span>幾點</span><span>吃多久</span></div>
+      ${ms.map(m=>`<div class="mealrow" data-k="${m.k}"><label class="switch" style="min-width:92px"><input type="checkbox" ${m.on?'checked':''}>${m.label}</label><input type="time" value="${m.time}" aria-label="${m.label}幾點"><select aria-label="${m.label}吃多久">${durOpts.map(d=>`<option value="${d}" ${d==m.dur?'selected':''}>${d} 分</option>`).join('')}</select></div>`).join('')}
     </div>
-  </section>
+    <div class="note blue">兩天以上：第二天早餐排在住宿附近。時間可前後彈性 30 分鐘。<br>這些時段會寫進提示詞，AI 只能在時段裡放餐廳，景點排在中間。</div>
+  </div>
+  <div class="foot"><button class="btn" data-act="mealSave">存成我的預設</button><button class="link" data-act="mealReset">恢復原本的設定</button></div>`;
+};
+ACT.mealSave = () => {
+  const ms = meals().map(m=>{ const r=document.querySelector(`.mealrow[data-k="${m.k}"]`); return {...m, on:r.querySelector('input[type=checkbox]').checked, time:r.querySelector('input[type=time]').value||m.time, dur:+r.querySelector('select').value}; });
+  LS.set('meals', ms); toast('用餐模板存好了'); go(prefBack());
+};
+ACT.mealReset = () => { LS.set('meals', DEFAULT_MEALS); render(); toast('已恢復'); };
 
-  <!-- 願望清單 -->
-  <section id="view-wish" class="hidden">
-    <div class="card" id="wish-form">
-      <h2 class="step-h">看到想去的，先記下來</h2>
-      <label class="f"><span>Google 地圖連結 <small>（選填：在 Google 地圖按「分享」→「複製連結」貼上，店名會自動帶入）</small></span>
-        <input type="text" id="w-map" maxlength="600" placeholder="https://maps.app.goo.gl/…" autocomplete="off" inputmode="url">
-      </label>
-      <label class="f"><span>地方或店名</span>
-        <input type="text" id="w-name" maxlength="100" placeholder="例：港園牛肉麵" autocomplete="off">
-      </label>
-      <div class="row">
-        <div class="f"><span class="lbl">範圍</span>
-          <div class="seg" id="w-scope">
-            <button type="button" data-v="domestic" aria-pressed="true">國內</button>
-            <button type="button" data-v="abroad" aria-pressed="false">國外</button>
-          </div>
-        </div>
-        <div class="f"><span class="lbl">種類</span>
-          <div class="seg" id="w-kind">
-            <button type="button" data-v="eat" aria-pressed="true">吃的</button>
-            <button type="button" data-v="drink" aria-pressed="false">喝的</button>
-            <button type="button" data-v="play" aria-pressed="false">玩的</button>
-          </div>
-        </div>
-      </div>
-      <label class="f" id="w-city-wrap"><span>縣市</span><select id="w-city"></select></label>
-      <label class="f hidden" id="w-abroad-wrap"><span>國家／城市</span>
-        <input type="text" id="w-abroad" maxlength="60" placeholder="例：日本 京都" autocomplete="off">
-      </label>
-      <div class="row stack">
-        <label class="f"><span>備註 <small>（選填）</small></span><input type="text" id="w-note" maxlength="200" placeholder="例：朋友推薦、要排隊" autocomplete="off"></label>
-        <label class="f"><span>連結 <small>（選填，IG／文章）</small></span><input type="url" id="w-url" maxlength="500" placeholder="https://" autocomplete="off"></label>
-      </div>
-      <div class="btns"><button type="button" class="btn" id="btn-wish-add">加入願望清單</button></div>
-      <div class="msg" id="msg-wish" role="status"></div>
-    </div>
-
-    <details class="card fold" id="share-card">
-      <summary>用 iPhone 分享鍵一鍵存</summary>
-      <p class="hint">做一次「捷徑」，以後在 Google 地圖或 IG 按「分享」→「存到願望清單」，就會打開這裡並填好店名和連結，確認縣市按加入就好。</p>
-      <ol class="steps">
-        <li>打開「捷徑」App，按右上角「＋」新增捷徑，名稱取「存到願望清單」。</li>
-        <li>點下方的「ⓘ」（或上方名稱 →「詳細資訊」），打開「在分享表單中顯示」。</li>
-        <li>加入動作「URL 編碼」，輸入選「捷徑輸入」。</li>
-        <li>加入動作「文字」，貼上下面這串，再在最後面插入變數「已編碼的 URL」。</li>
-        <li>加入動作「打開 URL」（輸入選上一步的「文字」），完成。</li>
-      </ol>
-      <div class="copy-row"><input type="text" id="share-prefix" readonly aria-label="捷徑要用的網址開頭"><button type="button" class="btn small" id="btn-share-copy">複製</button></div>
-      <p class="hint2">iOS 版本不同，動作名稱可能略有差異（例如「編碼 URL」「開啟 URL」）。Google 地圖分享時如果只帶連結沒有店名，店名欄再自己補上。</p>
-      <div class="msg" id="msg-share" role="status"></div>
-    </details>
-
-    <details class="card fold" id="imp-card">
-      <summary>從 Google 地圖匯入已存的地點</summary>
-      <ol class="steps">
-        <li>用電腦打開 <b>takeout.google.com</b>（Google 匯出），先按「取消全選」，只勾「已儲存」和「地圖（你的地點）」，建立匯出。</li>
-        <li>下載後解壓縮：「已儲存」資料夾裡每個清單是一個 <b>.csv</b>；「地圖（你的地點）」裡有加標籤的地點和已儲存的地點 <b>.json</b>。（英文介面叫 Saved、Maps (your places)）</li>
-        <li>在下面選這些檔案，可以一次選好幾個；會先列出來讓你確認縣市，還有是吃的、喝的還是玩的。</li>
-      </ol>
-      <input type="file" id="imp-file" accept=".csv,.json,text/csv,application/json" multiple aria-label="選擇 Google 匯出的檔案">
-      <div class="msg" id="msg-imp" role="status"></div>
-      <div id="imp-preview" class="hidden">
-        <div class="imp-bulk">
-          <span>還沒選縣市的都設成</span>
-          <select id="imp-city-all" aria-label="一次設定縣市"></select>
-          <button type="button" class="btn small ghost" id="btn-imp-city">套用</button>
-        </div>
-        <div id="imp-list"></div>
-        <div class="btns">
-          <button type="button" class="btn" id="btn-imp-add">加入勾選的地點</button>
-          <button type="button" class="btn ghost" id="btn-imp-cancel">取消</button>
-        </div>
+/* ================= FORM (直接出發) ================= */
+function defaultForm(){
+  const ms = meals();
+  return {place:'', date: ymd(new Date()), span:'一天', mode:'開車', meals: ms.filter(m=>m.on).map(m=>m.k), start: LS.get('lastStart',''), people:2, kids:false, budget:'', extra:''};
+}
+let form = LS.get('form', null) || defaultForm();
+function saveForm(){ LS.set('form', form); }
+function prefSummary(){
+  const p = prefs(); const out=[];
+  out.push('吃：'+([...p.eat.kinds].join('、')||'不限')+(p.eat.price?'・'+p.eat.price:''));
+  out.push('喝：'+(p.drink.kinds.join('、')||'不限'));
+  out.push('玩：'+(p.play.kinds.join('、')||'不限'));
+  return out;
+}
+routes.form = () => {
+  sessionStorage.setItem('lg.back','form');
+  const today = ymd(new Date()), tmr = addDays(today,1);
+  const ms = meals();
+  const dateBtns = [[today,'今天 '+mdw(today)],[tmr,'明天 '+mdw(tmr)]];
+  const custom = form.date!==today && form.date!==tmr;
+  return header('直接出發','home') + steps(1) + `<div class="pad stack" style="gap:18px">
+    <div class="field"><label class="lbl" for="fPlace">想去哪裡</label><input id="fPlace" class="inp" placeholder="例：內灣老街" value="${esc(form.place)}" data-f="place"></div>
+    <div class="field"><span class="lbl">哪天去</span>
+      <div class="seg" style="grid-template-columns:1fr 1fr 1fr">${dateBtns.map(([v,t])=>`<button aria-pressed="${form.date===v}" data-act="fSet" data-k="date" data-v="${v}">${t}</button>`).join('')}
+      <label style="position:relative"><button aria-pressed="${custom}" style="width:100%" tabindex="-1">${custom? mdw(form.date):'選日期'}</button><input type="date" data-f="date" value="${form.date}" min="${today}" aria-label="選日期" style="position:absolute;inset:0;opacity:0;width:100%"></label></div>
+      <span class="hint">會請 AI 查這天每家店有沒有開</span></div>
+    <div class="field"><span class="lbl">有多少時間</span><div class="seg" style="grid-template-columns:repeat(4,1fr)">${['半天','一天','兩天一夜','三天兩夜'].map(v=>`<button aria-pressed="${form.span===v}" data-act="fSet" data-k="span" data-v="${v}">${v}</button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">怎麼去</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">${['開車','大眾運輸','機車'].map(v=>`<button aria-pressed="${form.mode===v}" data-act="fSet" data-k="mode" data-v="${v}">${v}</button>`).join('')}</div>
+      <span class="hint">${form.mode==='大眾運輸'?'每段會附上車站、下車站、時間和多久一班':'每站附停車場'}</span></div>
+    <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">吃喝玩偏好</span><button class="hbtn" data-go="prefs">修改</button></div>
+      <div class="chips">${prefSummary().map(s=>`<span class="chip" style="border-style:dashed">${esc(s)}</span>`).join('')}</div></div>
+    <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">要排哪幾餐</span><button class="hbtn" data-go="meals">用餐模板</button></div>
+      <div class="chips">${ms.map(m=>`<button class="chip terra" aria-pressed="${form.meals.includes(m.k)}" data-act="fMeal" data-k="${m.k}">${m.label} ${m.time}</button>`).join('')}</div></div>
+    <details class="card" style="padding:4px 16px" ${form.start||form.budget||form.extra||form.kids?'open':''}>
+      <summary style="min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer">更多選項：出發點、人數、預算</summary>
+      <div class="stack" style="padding:4px 0 16px">
+        <div class="field"><label class="lbl" for="fStart">從哪裡出發</label><input id="fStart" class="inp" placeholder="例：竹東、新竹火車站" value="${esc(form.start)}" data-f="start"></div>
+        <div class="field"><span class="lbl">幾個人</span><div class="seg" style="grid-template-columns:repeat(5,1fr)">${[1,2,3,4,'5+'].map(v=>`<button aria-pressed="${String(form.people)===String(v)}" data-act="fSet" data-k="people" data-v="${v}">${v}</button>`).join('')}</div></div>
+        <label class="switch"><input type="checkbox" data-fc="kids" ${form.kids?'checked':''}>有帶小孩</label>
+        <div class="field"><label class="lbl" for="fBudget">每人預算（選填）</label><input id="fBudget" class="inp" inputmode="numeric" placeholder="例：1500" value="${esc(form.budget)}" data-f="budget"></div>
+        <div class="field"><label class="lbl" for="fExtra">想補充給 AI 的話（選填）</label><input id="fExtra" class="inp" placeholder="例：15:00 前要回程" value="${esc(form.extra)}" data-f="extra"></div>
       </div>
     </details>
+  </div>
+  <div class="foot"><button class="btn blue" data-act="makePrompt">產生提示詞並複製</button></div>`;
+};
+function steps(n){ const L=['填地點','問 AI','貼回']; return `<div class="steps">${L.map((t,i)=>`<span class="${i+1===n?'on':(i+1<n?'done':'')}">${i+1} ${t}${i+1<n?' ✓':''}</span>`).join('<span style="padding:0;color:var(--faint)">›</span>')}</div>`; }
+document.addEventListener('input', e=>{
+  const f = e.target.dataset.f; if(f){ form[f] = e.target.value; saveForm(); if(f==='date') render(); }
+});
+document.addEventListener('change', e=>{ const f=e.target.dataset.fc; if(f){ form[f]=e.target.checked; saveForm(); } });
+ACT.fSet = el => { const k=el.dataset.k; form[k] = el.dataset.v; saveForm(); render(); };
+ACT.fMeal = el => { const k=el.dataset.k; const i=form.meals.indexOf(k); if(i>=0) form.meals.splice(i,1); else form.meals.push(k); saveForm(); el.setAttribute('aria-pressed', i<0); };
 
-    <div class="card">
-      <p class="hint" id="wish-space-hint"></p>
-      <div class="filters">
-        <div class="seg" id="wf-scope">
-          <button type="button" data-v="domestic" aria-pressed="true">國內</button>
-          <button type="button" data-v="abroad" aria-pressed="false">國外</button>
-        </div>
-        <div class="seg" id="wf-kind">
-          <button type="button" data-v="all" aria-pressed="true">全部</button>
-          <button type="button" data-v="eat" aria-pressed="false">吃的</button>
-          <button type="button" data-v="drink" aria-pressed="false">喝的</button>
-          <button type="button" data-v="play" aria-pressed="false">玩的</button>
-        </div>
-        <label class="inline-check"><input type="checkbox" id="wf-done"> 顯示去過的</label>
-      </div>
-      <div id="wish-list"></div>
+const SCHEMA = `{
+  "title": "行程名稱",
+  "budget_ntd": 每人預估花費數字,
+  "days": [
+    {
+      "day": 1,
+      "date": "YYYY-MM-DD",
+      "stops": [
+        {
+          "time": "HH:MM",
+          "name": "店名或景點名（要能在 Google 地圖搜到）",
+          "area": "鄉鎮或地址",
+          "type": "吃 | 喝 | 玩 | 住",
+          "meal": "早餐 | 午餐 | 下午茶 | 晚餐 | 宵夜 | 不是用餐填 null",
+          "stay_min": 停留分鐘數,
+          "note": "一句推薦理由",
+          "rating_hint": "Google 星等，例如 4.5，查不到填 null",
+          "price": "$ | $$ | $$$",
+          "open_status": "open | closed | unknown",
+          "hours": "那一天的營業時間，例如 11:00–20:00；全天開放填 全天",
+          "hours_source": "查到營業時間的來源",
+          "parking": "停車場名稱與步行分鐘，或 店家有停車場 / 路邊停車格；大眾運輸填 null",
+          "legs": [
+            {
+              "mode": "台鐵 | 高鐵 | 捷運 | 公車 | 步行 | 開車 | 機車",
+              "line": "路線或車次，例如 內灣線區間車、公車 5608",
+              "from_station": "上車站",
+              "depart": "HH:MM",
+              "to_station": "下車站",
+              "arrive": "HH:MM",
+              "duration_min": 分鐘數,
+              "headway_min": 大約幾分鐘一班,
+              "last_train": "末班時間，沒有限制填 null"
+            }
+          ],
+          "alternatives": [
+            {"name": "", "area": "", "rating_hint": "", "price": "", "note": "", "parking": "", "open_status": "open | unknown", "hours": ""}
+          ]
+        }
+      ]
+    }
+  ]
+}`;
+function buildPrompt(f){
+  const p = prefs(); const ms = meals();
+  const n = {'半天':1,'一天':1,'兩天一夜':2,'三天兩夜':3}[f.span]||1;
+  const dates = Array.from({length:n},(_,i)=>addDays(f.date,i));
+  const chosen = ms.filter(m=>f.meals.includes(m.k));
+  const lines = [];
+  lines.push(`你是熟悉台灣的旅遊規劃助理。請幫我排一份「${f.place}」的${f.span}行程。`);
+  lines.push(`日期：${dates.map(d=>d+'（週'+WD[parseYmd(d).getDay()]+'）').join('、')}`);
+  lines.push(`人數：${f.people} 人${f.kids?'，有帶小孩':''}`);
+  lines.push(`出發：${f.start||'（沒指定，從目的地附近開始排）'}，交通方式：${f.mode}`);
+  if(f.span==='半天') lines.push('時間：只有半天，大約 4–5 小時，請排 3–4 站就好。');
+  lines.push(`用餐時段：${chosen.length? chosen.map(m=>m.label+' '+m.time+'（約 '+m.dur+' 分）').join('、') : '不用排正餐'}。餐廳只能排在這些時段（前後可彈性 30 分鐘），景點排在中間。${n>1?'第二天起的早餐排在住宿附近。':''}`);
+  lines.push(`吃的偏好：${p.eat.kinds.join('、')||'不限'}；價位 ${p.eat.price||'不限'}${p.eat.avoid?'；不吃：'+p.eat.avoid:''}${p.eat.high?'；只推 Google 4.0 星以上':''}`);
+  lines.push(`喝的偏好：${p.drink.kinds.join('、')||'不限'}${p.drink.env.length?'；環境：'+p.drink.env.join('、'):''}`);
+  lines.push(`玩的偏好：${p.play.kinds.join('、')||'不限'}；走路強度 ${p.play.walk||'普通'}${p.play.rain?'；請在 note 附一個雨天室內備案':''}`);
+  if(f.budget) lines.push(`預算：每人約 NT$${f.budget}`);
+  if(f.extra) lines.push(`補充：${f.extra}`);
+  lines.push('');
+  lines.push('規則：');
+  lines.push('1. 每一站都查「那一天」的營業時間，公休的不要排；查不到就把 open_status 填 unknown。');
+  if(f.mode==='大眾運輸'){
+    lines.push('2. 每一站的 legs 寫「從上一站到這一站」怎麼搭：台鐵、高鐵、捷運、公車都要給上車站、發車時間、下車站、抵達時間、車程、大約幾分鐘一班；班次少或有末班車限制要寫 last_train。步行也寫一段 mode=步行。');
+    lines.push('3. parking 填 null。');
+  } else {
+    lines.push(`2. 每一站的 parking 寫最近的停車場名稱與步行分鐘；店家自己有停車場就寫「店家有停車場」。legs 只要寫一段 mode=${f.mode}、duration_min 車程。`);
+    lines.push('3. 路線要順，不要來回繞。');
+  }
+  const alt = [];
+  if(p.eat.alts) alt.push('每個用餐站給 3 家備選');
+  if(p.drink.alts) alt.push('每個喝的站給 3 家備選');
+  if(p.play.alts) alt.push('每個玩的站給 2 個備選');
+  lines.push(`4. alternatives：${alt.join('、')||'不用給備選'}，備選要在同一區、同一天有營業。`);
+  lines.push(`5. 第一站 legs 從出發點算起。${n>1?'每天最後一站排住宿（type 填 住）。':''}`);
+  lines.push('');
+  lines.push('回覆：只回一段 JSON，不要加任何說明文字，格式如下：');
+  lines.push(SCHEMA);
+  return lines.join('\n');
+}
+ACT.makePrompt = async () => {
+  form.place = ($('#fPlace').value||'').trim(); saveForm();
+  if(!form.place){ toast('先填想去哪裡'); $('#fPlace').focus(); return; }
+  if(form.start) LS.set('lastStart', form.start);
+  const pr = buildPrompt(form);
+  LS.set('lastPrompt', pr);
+  const ok = await copyText(pr);
+  go('paste/'+(ok?'1':'0'));
+};
+
+/* ================= PASTE ================= */
+routes.paste = (copied) => {
+  const val = LS.get('paste','');
+  const pr = LS.get('lastPrompt','');
+  return header('直接出發','form') + steps(3) + `<div class="pad stack">
+    <div class="note ${copied==='1'?'ok':'amber'}">${copied==='1'?'<b>提示詞已複製</b><br>':'<b>沒有自動複製成功</b>，按下面「再複製一次」。<br>'}打開你的 AI 貼上送出，再把整段回覆複製回來。</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <a class="btn2" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
+      <a class="btn2" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a>
+      <a class="btn2" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a>
     </div>
-  </section>
+    <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="recopy">再複製一次</button><button class="btn2" style="flex:1" data-act="showPrompt">看提示詞</button></div>
+    <div class="hint">建議選有「網路搜尋」的模式，AI 才查得到當天營業時間。</div>
+    <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><label class="lbl" for="pasteBox">貼上 AI 的回覆</label><button class="hbtn" data-act="clearPaste">清空</button></div>
+      <textarea id="pasteBox" class="inp" placeholder="長按貼上整段回覆">${esc(val)}</textarea>
+      <span class="hint">格式不對時，會說是第幾站有問題</span></div>
+    ${pr?'':'<div class="note amber">找不到剛剛的提示詞，請回上一步重新產生。</div>'}
+  </div>
+  <div class="foot"><button class="btn blue" data-act="parsePaste">排成行程</button></div>`;
+};
+document.addEventListener('input', e=>{ if(e.target.id==='pasteBox') LS.set('paste', e.target.value); });
+ACT.recopy = async () => { const ok = await copyText(LS.get('lastPrompt','')); toast(ok?'已複製':'複製失敗，請按「看提示詞」手動複製'); };
+ACT.showPrompt = () => openSheet(`<div class="pad stack"><b style="font-size:18px">提示詞</b><textarea class="inp" readonly style="min-height:50vh">${esc(LS.get('lastPrompt',''))}</textarea><button class="btn" data-act="recopy">複製</button><button class="link" data-act="closeSheet">關閉</button></div>`);
+ACT.clearPaste = () => { LS.set('paste',''); const b=$('#pasteBox'); if(b){ b.value=''; b.focus(); } };
 
-  <!-- 行程結果 -->
-  <section id="view-result" class="hidden">
-    <div class="btns no-print" id="result-bar">
-      <button type="button" class="btn small ghost" id="btn-back">← 回去修改</button>
-      <select id="save-space" aria-label="存到哪裡"></select>
-      <button type="button" class="btn small" id="btn-save">存起來</button>
-      <button type="button" class="btn small ghost" id="btn-edit">編輯行程</button>
-      <button type="button" class="btn small ghost" id="btn-print">列印／存 PDF</button>
+function extractJSON(text){
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if(fence) t = fence[1].trim();
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if(a<0||b<a) throw new Error('找不到 JSON（回覆裡要有一段 { … } 開頭結尾的內容）');
+  t = t.slice(a,b+1).replace(/[“”]/g,'"').replace(/,\s*([}\]])/g,'$1');
+  try{ return JSON.parse(t); }
+  catch(e){ throw new Error('JSON 格式壞掉了，可能沒複製完整（'+e.message.replace(/^JSON\.parse: /,'')+'）'); }
+}
+function validate(data){
+  const errs=[], warns=[]; let okCount=0;
+  if(!data || !Array.isArray(data.days) || !data.days.length){ errs.push({msg:'少了 days（每天的行程）'}); return {errs,warns,okCount}; }
+  let idx=0;
+  data.days.forEach((d,di)=>{
+    if(!Array.isArray(d.stops)){ errs.push({day:di, msg:`第 ${di+1} 天沒有 stops`}); return; }
+    d.stops.forEach((s,si)=>{
+      idx++; const label = `第 ${data.days.length>1?(di+1)+' 天第 ':''}${si+1} 站${s&&s.name?'「'+s.name+'」':''}`;
+      const probs=[];
+      if(!s || typeof s!=='object'){ probs.push('不是正確的格式'); }
+      else{
+        if(!s.name) probs.push('少了名字');
+        if(toMin(s.time)==null) probs.push('少了時間（要寫 HH:MM）');
+        if(s.hours && s.hours!=='全天' && s.open_status==='open' && !/\d{1,2}:\d{2}/.test(s.hours)) warns.push(`${label}的營業時間寫成「${s.hours}」，要寫幾點到幾點`);
+      }
+      if(probs.length) errs.push({day:di, stop:si, msg:label+probs.join('、')}); else okCount++;
+    });
+  });
+  return {errs,warns,okCount};
+}
+function normalize(data){
+  data.days.forEach((d,i)=>{ d.day = d.day||i+1; d.stops = (d.stops||[]).filter(s=>s&&s.name&&toMin(s.time)!=null).map(s=>({
+    ...s, time: fromMin(toMin(s.time)), type: normType(s.type, s.meal), alternatives: Array.isArray(s.alternatives)? s.alternatives.filter(a=>a&&a.name):[], legs: Array.isArray(s.legs)? s.legs.filter(Boolean):[]
+  })).sort((a,b)=>toMin(a.time)-toMin(b.time)); });
+  return data;
+}
+function normType(t, meal){ t=String(t||''); if(/吃|eat|food/i.test(t)) return '吃'; if(/喝|drink|cafe/i.test(t)) return '喝'; if(/住|stay|hotel/i.test(t)) return '住'; if(/玩|play|spot/i.test(t)) return '玩'; return meal? '吃':'玩'; }
+let lastCheck = null;
+ACT.parsePaste = () => {
+  const text = $('#pasteBox').value; LS.set('paste', text);
+  if(!text.trim()){ toast('先貼上 AI 的回覆'); return; }
+  let data; try{ data = extractJSON(text); }catch(e){ lastCheck={fatal:e.message}; go('pasteerr'); return; }
+  const v = validate(data);
+  if(v.errs.length || v.warns.length){ lastCheck = {data, ...v}; go('pasteerr'); return; }
+  finishPaste(data);
+};
+function finishPaste(data){
+  normalize(data);
+  const t = {id:'draft', title: data.title || form.place, place: form.place, date: data.days[0].date || form.date, mode: form.mode, span: form.span, data, original: JSON.parse(JSON.stringify(data)), saved:false, createdAt: Date.now()};
+  data.days.forEach((d,i)=>{ if(!d.date) d.date = addDays(t.date, i); });
+  LS.set('draftTrip', t);
+  go('trip/draft');
+}
+routes.pasteerr = () => {
+  if(!lastCheck) return routes.paste('1');
+  const c = lastCheck;
+  const items = c.fatal? [c.fatal] : [...c.errs.map(e=>e.msg), ...c.warns];
+  const canPartial = !c.fatal && c.okCount>0;
+  return header('直接出發','paste/1') + steps(3) + `<div class="pad stack">
+    <div class="note terra"><b style="font-size:17px">有 ${items.length} 個地方看不懂</b><ul style="margin:8px 0 0;padding-left:20px">${items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>${canPartial?`<div style="margin-top:6px">其他 ${c.okCount} 站都讀得懂</div>`:''}</div>
+    <button class="btn2" data-act="copyFix">複製修正指令，貼給 AI</button>
+    <div class="hint">指令會寫明哪幾站要補什麼，AI 改好再貼回來。</div>
+    <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><label class="lbl" for="pasteBox">你貼上的內容</label><button class="hbtn" data-act="clearPaste">清空</button></div>
+      <textarea id="pasteBox" class="inp" style="min-height:140px">${esc(LS.get('paste',''))}</textarea></div>
+  </div>
+  <div class="foot"><button class="btn blue" data-act="parsePaste">AI 改好了，重新檢查</button>${canPartial?'<button class="link" data-act="usePartial">先用讀得懂的站'+(c.errs.length?'':'（營業時間之後再確認）')+'</button>':''}</div>`;
+};
+ACT.copyFix = async () => {
+  const c = lastCheck; const items = c.fatal? [c.fatal] : [...c.errs.map(e=>e.msg), ...c.warns];
+  const txt = `你剛剛的回覆有這些地方要修正：\n${items.map((i,n)=>(n+1)+'. '+i).join('\n')}\n\n請修正後，重新回傳「完整」的 JSON（格式跟原本一樣），不要加任何說明文字。`;
+  const ok = await copyText(txt); toast(ok?'修正指令已複製':'複製失敗');
+};
+ACT.usePartial = () => { finishPaste(lastCheck.data); };
+
+/* ================= TRIP VIEW ================= */
+let tripDay = 0;
+function tripStats(t){
+  const stops = t.data.days.flatMap(d=>d.stops);
+  const open = stops.filter(s=>s.open_status==='open' || /全天/.test(s.hours||'')).length;
+  const unk = stops.filter(s=>!(s.open_status==='open' || /全天/.test(s.hours||'')) && s.open_status!=='closed').length;
+  const closed = stops.filter(s=>s.open_status==='closed').length;
+  return {n:stops.length, open, unk, closed};
+}
+function typeTag(s){
+  const m = {'吃':'t-eat','喝':'t-drink','玩':'t-play','住':'t-stay'}[s.type]||'t-go';
+  return `<span class="tag ${m}">${esc(s.meal && s.meal!=='null' ? s.meal : s.type)}</span>`;
+}
+function statusLine(s, date){
+  const wd = date? '週'+WD[parseYmd(date).getDay()]+' ' : '';
+  if(/全天/.test(s.hours||'')) return `<span class="status s-open">✓ 全天開放</span>`;
+  if(s.open_status==='open') return `<span class="status s-open">✓ ${esc(wd)}${esc(s.hours||'')} · 有營業</span>`;
+  if(s.open_status==='closed') return `<span class="status s-closed">✕ ${esc(wd)}公休，建議換一家</span>`;
+  return `<span class="status s-unk">? 查不到${esc(wd.trim())}營業時間，出發前確認</span>`;
+}
+const dest = s => [s.name, s.area].filter(Boolean).join(' ');
+function legHTML(l, t){
+  if(!l) return '';
+  const isTransit = /台鐵|高鐵|捷運|公車|客運|火車|輕軌/.test(l.mode||'');
+  if(!isTransit){
+    const m = l.duration_min? `約 ${esc(l.duration_min)} 分` : '';
+    if(!m && !l.line) return '';
+    return `<div class="leg"><span>${esc(l.mode||'移動')} ${m}${l.line?' · '+esc(l.line):''}</span></div>`;
+  }
+  const warn = (l.headway_min && +l.headway_min>=60) || l.last_train;
+  return `<div class="leg">
+    <span><b>${esc(l.mode)}</b> ${esc(l.line||'')}</span>
+    <span>${esc(l.depart||'?')} ${esc(l.from_station||'?')} 上車 → ${esc(l.arrive||'?')} ${esc(l.to_station||'?')} 下車</span>
+    <span>${l.duration_min?'車程 '+esc(l.duration_min)+' 分':''}${l.headway_min?' · 約 '+esc(l.headway_min)+' 分一班':''}</span>
+    ${warn?`<span style="color:var(--amber2);font-weight:700">${l.last_train?'末班 '+esc(l.last_train)+'，別錯過':''}${l.last_train&&+l.headway_min>=60?' · ':''}${+l.headway_min>=60?'錯過要等約 '+Math.round(l.headway_min/60*10)/10+' 小時':''}</span>`:''}
+    <a href="${esc(gm.transit(l.from_station||'', l.to_station||''))}" target="_blank" rel="noopener" style="font-weight:700;min-height:36px;display:flex;align-items:center">查即時時刻 ›</a>
+  </div>`;
+}
+function stopHTML(t, di, si, opts={}){
+  const s = t.data.days[di].stops[si]; const date = t.data.days[di].date;
+  const mode = t.mode==='大眾運輸'?'transit':(t.mode==='機車'?'two-wheeler':'driving');
+  const legs = (s.legs||[]).map(l=>legHTML(l,t)).join('');
+  const stay = s.stay_min? (s.meal&&s.meal!=='null'? s.stay_min+' 分鐘':'停留約 '+(s.stay_min>=90? Math.round(s.stay_min/60*10)/10+' 小時' : s.stay_min+' 分鐘')) : '';
+  const isMeal = s.meal && s.meal!=='null';
+  const park = t.mode==='大眾運輸' ? '' : `<div class="park"><span class="pbadge">P</span><span class="t">${esc(s.parking||'沒有停車資訊')}</span><a href="${esc(gm.search(dest(s)+' 附近 停車場'))}" target="_blank" rel="noopener">找停車</a></div>`;
+  return `${legs}<div class="timecol"><div class="tm">${esc(s.time)}</div>
+    <article class="card stop ${opts.cur?'cur':''}">
+      <div class="row1">${typeTag(s)}${isMeal?'<span class="sub">模板時段</span>':''}${s.rating_hint&&s.rating_hint!=='null'?`<span class="sub">★ ${esc(s.rating_hint)}</span>`:''}${s.price?`<span class="sub">${esc(s.price)}</span>`:''}</div>
+      <div class="name">${esc(s.name)}</div>
+      ${stay||s.note?`<div class="sub" style="line-height:1.5">${esc([stay, s.note].filter(Boolean).join(' · '))}</div>`:''}
+      ${statusLine(s, date)}
+      <div class="acts">
+        <a class="act" href="${esc(gm.dir(dest(s), mode))}" target="_blank" rel="noopener">導航</a>
+        <a class="act" href="${esc(gm.search(dest(s)))}" target="_blank" rel="noopener">看評價</a>
+        ${opts.noswap?'':`<button class="act" data-act="swap" data-d="${di}" data-s="${si}">換一${s.type==='玩'?'個':'家'}</button>`}
+      </div>
+      ${park}
+    </article></div>`;
+}
+routes.trip = (id) => {
+  if(id==='gtoday'){ const g=getTrip('gtoday'); setTimeout(()=>go(g&&g.gid?'g/'+g.gid+'/plan':'mytrips'),0); return ''; }
+  const t = getTrip(id); if(!t) return header('找不到行程','mytrips')+`<div class="pad"><div class="note amber">這份行程不在這支手機上，可能已刪除。</div><div style="height:12px"></div><button class="btn" data-go="mytrips">回我的行程</button></div>`;
+  if(tripDay>=t.data.days.length) tripDay=0;
+  const st = tripStats(t);
+  const d = t.data.days[tripDay];
+  const multi = t.data.days.length>1;
+  return header(esc(t.title), t.saved?'mytrips':'paste/1', t.saved? `<button class="hbtn" data-act="tripMore" data-id="${esc(t.id)}">⋯</button>`:`<button class="hbtn" data-act="saveTrip">存檔</button>`) + `
+  <div class="pad stack">
+    <div class="sub">${st.n} 站 · ${esc(t.mode)}${t.data.budget_ntd?' · 預算約 NT$'+esc(t.data.budget_ntd)+' / 人':''}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <button class="btn2" data-go="today/${enc(t.id)}">當天模式</button>
+      <button class="btn2" data-go="edit/${enc(t.id)}">編輯</button>
+      <button class="btn2" data-go="share/${enc(t.id)}">分享／匯出</button>
     </div>
-    <div class="msg no-print mb" id="msg-result" role="status"></div>
-    <div class="btns no-print hidden" id="revise-undo-bar"><button type="button" class="btn small ghost" id="btn-revise-undo">換回原本的行程</button></div>
-    <div class="card glass no-print hidden" id="revise-card">
-      <h2 class="card-h">請 AI 重新排</h2>
-      <label class="f"><span>想怎麼改？ <small>（選填，例：下午改去海邊、午餐換素食；不寫就照同樣條件重排一版）</small></span>
-        <textarea id="revise-req" maxlength="500" rows="2" placeholder="例：第二站換成室內的，晚餐想吃火鍋"></textarea>
-      </label>
-      <div class="btns">
-        <button type="button" class="btn" id="btn-revise-open">複製並開啟 Claude</button>
-        <button type="button" class="btn ghost" id="btn-revise-copy">只複製</button>
-      </div>
-      <div class="msg" id="msg-revise" role="status"></div>
-      <details class="more slim" id="revise-box"><summary>看提示詞</summary>
-        <textarea id="revise-prompt" readonly aria-label="修改用的提示詞"></textarea>
-      </details>
-      <textarea id="revise-in" placeholder="把 Claude 的新回答整段貼在這裡" aria-label="貼上 Claude 的新回答"></textarea>
-      <div class="btns mt">
-        <button type="button" class="btn" id="btn-revise-apply">換成新行程</button>
-        <button type="button" class="btn ghost" id="btn-revise-clear">清空</button>
-      </div>
-      <div class="msg" id="msg-revise-apply" role="status"></div>
-    </div>
-    <div id="result"></div>
-  </section>
+    ${t.saved?'':`<div class="note amber" style="display:flex;align-items:center;gap:8px"><span style="flex:1">還沒存檔，只是草稿。${isIOS&&!isStandalone()?'加到主畫面後才不會 7 天被清掉。':''}</span><button class="hbtn" data-act="saveTrip" style="color:var(--amber)">存檔 ›</button></div>`}
+    <div class="note ${st.closed?'terra':(st.unk?'amber':'ok')}">${esc(mdw(d.date))}${multi?' 起':''} · ${st.open} 站確認有營業${st.unk?'，'+st.unk+' 站不確定':''}${st.closed?'，<b>'+st.closed+' 站公休，建議換一家</b>':''}<br><span style="font-size:13px">營業時間由 AI 查詢，不確定的出發前點「看評價」確認</span></div>
+  </div>
+  ${multi?`<div class="tabs" role="tablist" style="margin-top:12px">${t.data.days.map((dd,i)=>`<button role="tab" aria-selected="${i===tripDay}" data-act="day" data-i="${i}">第 ${i+1} 天 · ${esc(mdw(dd.date))}</button>`).join('')}</div>`:'<div style="height:12px"></div>'}
+  <div class="stack" style="padding:0 16px 16px 8px">${d.stops.map((_,si)=>stopHTML(t,tripDay,si)).join('')}</div>
+  ${multi && tripDay<t.data.days.length-1?`<div class="pad"><button class="btn2" style="width:100%" data-act="day" data-i="${tripDay+1}">看第 ${tripDay+2} 天</button></div>`:''}
+  <div class="pad" style="padding-bottom:40px;margin-top:12px"><button class="btn2" style="width:100%;color:var(--mute);border-style:dashed" data-act="upgrade">升級成團（揪團功能開發中）</button></div>`;
+};
+let curTripId = null;
+routes.trip_after = id => { curTripId = id; };
+ACT.day = el => { tripDay = +el.dataset.i; render(); };
+ACT.saveTrip = () => {
+  const t = getTrip('draft'); if(!t) return;
+  t.id = uid(); t.saved = true; saveTrip(t); LS.del('draftTrip'); LS.del('paste');
+  toast('存到「我的行程」了'); go('trip/'+t.id);
+};
+ACT.upgrade = () => openSheet(`<div class="pad stack"><b style="font-size:18px">升級成團</b><div class="note blue">揪團（多人一起排、投票、分工、分帳）正在做。做好之後，這份行程可以直接變成團的第一版，不用重排。</div><button class="btn" data-act="closeSheet">知道了</button></div>`);
+ACT.tripMore = el => {
+  const id = el.dataset.id;
+  openSheet(`<div class="pad stack"><b style="font-size:18px">這份行程</b>
+    <button class="btn2" data-act="renameTrip" data-id="${esc(id)}">改名字</button>
+    <button class="btn2" data-act="dupTrip" data-id="${esc(id)}">複製一份，改日期再排</button>
+    <button class="btn2" style="color:var(--bad)" data-act="delTrip" data-id="${esc(id)}">刪除這份行程</button>
+    <button class="link" data-act="closeSheet">取消</button></div>`);
+};
+ACT.renameTrip = el => { const t=getTrip(el.dataset.id); const v=prompt('新的名字', t.title); if(v&&v.trim()){ t.title=v.trim(); saveTrip(t); render(); } };
+ACT.dupTrip = el => {
+  const t=getTrip(el.dataset.id);
+  form = {...defaultForm(), place:t.place||t.title, mode:t.mode, span:t.span||'一天'}; saveForm(); closeSheet(); toast('已帶入地點，選新日期後重新問 AI'); go('form');
+};
+ACT.delTrip = el => {
+  const id = el.dataset.id;
+  openSheet(`<div class="pad stack"><b style="font-size:18px">確定刪除？</b><div class="note terra">刪掉就找不回來了（只存在這支手機）。</div><button class="btn terra" data-act="delTrip2" data-id="${esc(id)}">刪除</button><button class="link" data-act="closeSheet">不要</button></div>`);
+};
+ACT.delTrip2 = el => { LS.set('trips', trips().filter(t=>t.id!==el.dataset.id)); toast('已刪除'); go('mytrips'); };
 
-  <!-- 我的行程 -->
-  <section id="view-saved" class="hidden">
-    <div class="card warn hidden" id="storage-warn"></div>
-    <p class="hint" id="saved-space-hint"></p>
-    <div id="saved-list"></div>
-    <div class="card" id="backup-card">
-      <h2 class="step-h">備份</h2>
-      <p class="hint" id="backup-hint">沒登入時，行程和願望清單只存在「這個瀏覽器」。到「旅伴」頁登入，就會存到你的帳號，換手機也找得回來；也可以匯出備份檔自己留著。</p>
-      <div class="btns">
-        <button type="button" class="btn small" id="btn-export">匯出備份檔</button>
-        <button type="button" class="btn small ghost" id="btn-import">匯入備份檔</button>
-        <input type="file" id="import-file" accept=".json,application/json" class="hidden">
-      </div>
-      <div class="msg" id="msg-backup" role="status"></div>
-    </div>
-  </section>
+/* swap sheet */
+ACT.swap = el => {
+  const di=+el.dataset.d, si=+el.dataset.s; const t=getTrip(curTripId); const s=t.data.days[di].stops[si];
+  const alts = (s.alternatives||[]).map((a,i)=>({...a,_i:i})).sort((x,y)=>(parseFloat(y.rating_hint)||0)-(parseFloat(x.rating_hint)||0));
+  const word = s.type==='玩'?'個':'家';
+  const list = alts.length? alts.map((a,ai)=>`<div class="card stop">
+      <div class="row1"><span class="name" style="font-size:17px">${esc(a.name)}</span>${a.rating_hint?`<span class="sub">★ ${esc(a.rating_hint)}</span>`:''}${a.price?`<span class="sub">${esc(a.price)}</span>`:''}</div>
+      ${a.area||a.parking?`<div class="sub">${esc([a.area, t.mode!=='大眾運輸'&&a.parking?'P '+a.parking:''].filter(Boolean).join(' · '))}</div>`:''}
+      ${a.open_status==='open'?`<span class="status s-open">✓ ${esc(a.hours||'')} 有營業</span>`:`<span class="status s-unk">? 營業時間不確定</span>`}
+      ${a.note?`<div class="sub">${esc(a.note)}</div>`:''}
+      <div class="acts"><button class="act" style="background:var(--sage);color:#fff;border-color:var(--sage)" data-act="doSwap" data-d="${di}" data-s="${si}" data-a="${a._i}">換成這${word}</button><a class="act" href="${esc(gm.search(dest(a)))}" target="_blank" rel="noopener">看評價</a></div>
+    </div>`).join('') : `<div class="note amber">AI 沒有給這站的備選。可以用下面的附近搜尋自己找，或回偏好打開「多給備選」。</div>`;
+  const q = s.type==='吃'? (s.meal&&s.meal!=='null'? '餐廳':'美食') : s.type==='喝'? '咖啡 飲料' : s.type==='住'? '住宿' : '景點';
+  openSheet(`<div class="pad stack">
+    <div class="sub">${esc(s.meal&&s.meal!=='null'?s.meal:s.type)} ${esc(s.time)}</div>
+    <b style="font-size:19px">換掉「${esc(s.name)}」</b>
+    <h2 class="sec" style="margin:0">備選清單${alts.length>1?'（評分排序）':''}</h2>
+    ${list}
+    <a class="btn2" href="${esc(gm.search(dest(s)+' 附近 '+q))}" target="_blank" rel="noopener">在這站附近用 Google 地圖找更多</a>
+    <label class="field"><span class="lbl" style="font-size:15px">自己找到了？直接打店名換掉</span><input id="swapName" class="inp" placeholder="店名"></label>
+    <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">用這個名字換掉</button>
+    <div class="hint">星等與營業時間是 AI 查的參考，換之前按「看評價」確認。</div>
+    <button class="link" data-act="closeSheet">不換了</button>
+  </div>`);
+};
+ACT.doSwap = el => {
+  const t=getTrip(curTripId); const di=+el.dataset.d, si=+el.dataset.s, ai=+el.dataset.a;
+  const s=t.data.days[di].stops[si]; const a=s.alternatives[ai];
+  const old = {name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours};
+  Object.assign(s, {name:a.name, area:a.area||s.area, rating_hint:a.rating_hint||null, price:a.price||s.price, note:a.note||'', parking:a.parking||s.parking, open_status:a.open_status||'unknown', hours:a.hours||''});
+  s.alternatives.splice(ai,1,old);
+  putTrip(t); closeSheet(); render(); toast('換成「'+a.name+'」');
+};
+ACT.swapManual = el => {
+  const v = $('#swapName').value.trim(); if(!v){ toast('先打店名'); return; }
+  const t=getTrip(curTripId); const s=t.data.days[+el.dataset.d].stops[+el.dataset.s];
+  s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours});
+  Object.assign(s,{name:v, rating_hint:null, note:'自己換的', open_status:'unknown', hours:'', parking: t.mode==='大眾運輸'?null:'出發前自己找停車'});
+  putTrip(t); closeSheet(); render();
+};
 
-  <!-- 旅伴 -->
-  <section id="view-group" class="hidden">
-    <div class="card warn hidden" id="group-off">旅伴功能的後端還沒設定好，現在只能用「我自己」。</div>
+/* sheet */
+function openSheet(html){ $('#layer').innerHTML = `<div class="sheet-bg" data-act="bgClose"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div></div>`; document.body.style.overflow='hidden'; }
+function closeSheet(){ $('#layer').innerHTML=''; document.body.style.overflow=''; }
+ACT.closeSheet = closeSheet;
+ACT.bgClose = (el, e) => { if(e.target===el) closeSheet(); };
 
-    <div class="card hidden" id="join-card">
-      <h2 class="step-h">加入旅伴群組</h2>
-      <p class="hint" id="join-hint">有人邀請你加入一起規劃行程。</p>
-      <div id="join-login" class="hidden">
-        <p class="hint2">在最上面登入或建立帳號，好了就會自動加入。</p>
-        <div class="btns"><button type="button" class="btn small" id="btn-join-login">去登入</button></div>
-      </div>
-      <div id="join-form" class="hidden">
-        <label class="f"><span>你在這個群組的暱稱 <small>（旅伴會看到誰改了什麼）</small></span>
-          <input type="text" id="join-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off">
-        </label>
-        <div class="btns"><button type="button" class="btn" id="btn-join">加入</button></div>
-      </div>
-      <div class="btns"><button type="button" class="btn ghost small" id="btn-join-cancel">先不要</button></div>
-      <div class="msg" id="msg-join" role="status"></div>
-    </div>
+/* ================= MY TRIPS ================= */
+routes.mytrips = () => {
+  const all = trips(); const today = ymd(new Date());
+  const draft = LS.get('draftTrip', null);
+  const card = t => { const st=tripStats(t); const isToday = t.data.days.some(d=>d.date===today);
+    return `<button class="card" data-go="trip/${enc(t.id)}" style="padding:14px 16px;display:flex;align-items:center;gap:12px;text-align:left;width:100%">
+      <span style="width:8px;align-self:stretch;border-radius:4px;background:var(--blue)"></span>
+      <span style="display:flex;flex-direction:column;gap:4px;flex:1"><span style="font-size:17px;font-weight:700">${esc(t.title)}</span><span class="sub">${esc(mdw(t.data.days[0].date))}${t.data.days.length>1?' 出發 · '+t.data.days.length+' 天':''} · ${st.n} 站 · ${esc(t.mode)}</span></span>
+      ${isToday?'<span class="tag" style="background:var(--amber-l);color:var(--amber)">今天</span>':''}
+    </button>`; };
+  const upcoming = all.filter(t=>t.data.days[t.data.days.length-1].date>=today).sort((a,b)=>a.data.days[0].date.localeCompare(b.data.days[0].date));
+  const past = all.filter(t=>t.data.days[t.data.days.length-1].date<today);
+  return header('我的行程','home') + `<div class="pad stack">${typeof groupWarn==='function'? groupWarn():''}
+    ${draft?`<button class="note amber" data-go="trip/draft" style="border:none;text-align:left;width:100%"><b>有一份還沒存檔的草稿</b><br>${esc(draft.title)} · 點開繼續</button>`:''}
+    <h2 class="sec" style="color:var(--blue-d)">自己的行程</h2>
+    ${upcoming.length? upcoming.map(card).join('') : `<div class="card" style="padding:18px"><div class="sub">還沒有要去的行程。</div><div style="height:10px"></div><button class="btn blue" data-go="form">直接出發排一個</button></div>`}
+    ${past.length?`<details><summary class="sub" style="min-height:44px;display:flex;align-items:center;cursor:pointer">去過的（${past.length}）</summary><div class="stack">${past.map(card).join('')}</div></details>`:''}
+    <h2 class="sec" style="color:var(--sage-d)">我的團</h2>
+    ${typeof groupSection==='function'? groupSection() : '<div class="card" style="padding:16px"><div class="sub">揪團功能載入失敗，請重新整理。</div></div>'}
+    <div class="hint">沒有帳號時，行程只存在這支手機的這個瀏覽器${isStandalone()?'（主畫面版）':''}。</div>
+  </div>`;
+};
 
-    <p class="hint2 group-tip" id="group-tip">要切換「我自己」或其他群組、改密碼、登出：按右上角你的名字。</p>
+/* ================= TODAY MODE ================= */
+function tripBack(id){ if(id==='gtoday'){ const t=getTrip('gtoday'); return t&&t.gid? 'g/'+enc(t.gid)+'/plan' : 'mytrips'; } return 'trip/'+enc(id); }
+routes.today = (id) => {
+  const t = getTrip(id); if(!t) return routes.trip(id);
+  const today = ymd(new Date());
+  let di = t.data.days.findIndex(d=>d.date===today); const notToday = di<0; if(di<0) di = 0;
+  const d = t.data.days[di]; t.progress = t.progress||{}; const pk = d.date;
+  let cur = t.progress[pk];
+  const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
+  if(cur==null){ cur = 0; if(!notToday){ d.stops.forEach((s,i)=>{ if(toMin(s.time)<=nowMin) cur=i; }); } }
+  const s = d.stops[cur];
+  const late = (!notToday && s) ? nowMin - toMin(s.time) : 0;
+  const nextClosing = [];
+  if(late>=15){ d.stops.slice(cur+1).forEach(x=>{ const m=/(\d{1,2}:\d{2})\s*[–\-~〜至到]\s*(\d{1,2}:\d{2})/.exec(x.hours||''); if(m){ const close=toMin(m[2]); const arr=toMin(x.time)+late; if(close-arr < 60) nextClosing.push(`${x.name} ${m[2]} 打烊，${fromMin(arr)} 才到${close-arr<=0?'，會來不及':'，只剩 '+(close-arr)+' 分'}`); } }); }
+  const done = d.stops.slice(0,cur);
+  return header(esc(t.title), tripBack(id)) + `<div class="pad stack">
+    <div class="sub">${notToday? esc(mdw(d.date))+' · 預覽（不是今天）' : '今天 · 當天模式'} · 第 ${cur+1} / ${d.stops.length} 站</div>
+    ${late>=15?`<div class="note amber"><b>比原計畫慢了約 ${late} 分鐘</b>${nextClosing.length?'<br>'+nextClosing.map(esc).join('<br>'):'<br>後面的站都還來得及。'}<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn2" data-act="shiftLater" data-id="${esc(id)}" data-min="${Math.round(late/15)*15}">後面全部往後推 ${Math.round(late/15)*15} 分</button></div></div>`:''}
+    ${done.length?`<div class="done-row">${done.map(x=>'✓ '+esc(x.time)+' '+esc(x.name)).join('　')}</div>`:''}
+    <div class="sub" style="font-weight:700;color:var(--blue)">現在</div>
+  </div>
+  <div class="stack" style="padding:8px 16px 0 8px">${s? stopHTML(t,di,cur,{cur:true,noswap:id==='gtoday'}):''}</div>
+  ${d.stops[cur+1]?`<div class="pad" style="margin-top:12px"><div class="sub" style="font-weight:700">下一站</div></div><div class="stack" style="padding:8px 16px 0 8px">${stopHTML(t,di,cur+1,{noswap:true})}</div>`:''}
+  ${d.stops.slice(cur+2).length?`<div class="pad" style="margin-top:12px">${d.stops.slice(cur+2).map(x=>`<div class="sub" style="padding:6px 0">${esc(x.time)}　${esc(x.name)}</div>`).join('')}</div>`:''}
+  <div class="hint pad" style="margin-top:12px">已存在手機裡，沒訊號也能看；導航和看評價要網路。${t.mode!=='大眾運輸'?'山區建議出發前在 Google 地圖 App 下載這一區的離線地圖。':''}</div>
+  <div class="foot">${cur < d.stops.length-1? `<button class="btn blue" data-act="nextStop" data-id="${esc(id)}" data-d="${esc(pk)}" data-c="${cur}">到了，換下一站</button>`:`<button class="btn blue" data-go="${tripBack(id)}">今天走完了</button>`}${cur>0?`<button class="link" data-act="prevStop" data-id="${esc(id)}" data-d="${esc(pk)}" data-c="${cur}">回上一站</button>`:''}</div>`;
+};
+routes.today_after = id => { curTripId = id; };
+ACT.nextStop = el => { const t=getTrip(el.dataset.id); t.progress=t.progress||{}; t.progress[el.dataset.d]=+el.dataset.c+1; putTrip(t); render(); };
+ACT.prevStop = el => { const t=getTrip(el.dataset.id); t.progress=t.progress||{}; t.progress[el.dataset.d]=Math.max(0,+el.dataset.c-1); putTrip(t); render(); };
+ACT.shiftLater = el => {
+  const t=getTrip(el.dataset.id); const today=ymd(new Date()); const d=t.data.days.find(x=>x.date===today)||t.data.days[0];
+  const cur = (t.progress||{})[d.date] ?? 0; const m=+el.dataset.min;
+  d.stops.forEach((s,i)=>{ if(i>=cur) s.time = fromMin(toMin(s.time)+m); });
+  t.progress = t.progress||{}; t.progress[d.date]=cur;
+  putTrip(t); toast('後面的站都往後推 '+m+' 分'); render();
+};
 
-    <div class="card hidden" id="group-detail">
-      <h2 class="step-h" id="gd-name"></h2>
-      <div class="meta" id="gd-meta"></div>
-      <label class="f mt"><span>邀請連結 <small>（傳給旅伴，點開就能加入）</small></span>
-        <input type="text" id="gd-link" readonly aria-label="邀請連結">
-      </label>
-      <div class="btns">
-        <button type="button" class="btn small" id="btn-gd-copy">複製連結</button>
-        <button type="button" class="btn small ghost hidden" id="btn-gd-share">分享…</button>
-        <button type="button" class="btn small ghost" id="btn-gd-import">把「我自己」的願望複製進來</button>
+/* ================= EDIT ================= */
+let editBuf = null;
+routes.edit = (id) => {
+  const t = getTrip(id); if(!t) return routes.trip(id);
+  if(!editBuf || editBuf.id!==id) editBuf = {id, data: JSON.parse(JSON.stringify(t.data)), day: tripDay};
+  const d = editBuf.data.days[editBuf.day];
+  const multi = editBuf.data.days.length>1;
+  return header('編輯行程','trip/'+enc(id), `<button class="hbtn" data-act="editSave">完成</button>`) + `
+  <div class="pad"><div class="sub" style="margin-bottom:8px">${esc(t.title)}</div><div class="hint">改了時間會自動照時間排序；「後面一起挪」會把之後的站跟著前後移。</div></div>
+  ${multi?`<div class="tabs" style="margin-top:12px">${editBuf.data.days.map((dd,i)=>`<button aria-selected="${i===editBuf.day}" data-act="editDay" data-i="${i}">第 ${i+1} 天</button>`).join('')}</div>`:'<div style="height:12px"></div>'}
+  <div class="pad stack" id="editList">
+    ${d.stops.map((s,i)=>`<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px" data-i="${i}">
+      <div style="display:flex;align-items:center;gap:8px"><input type="time" value="${esc(s.time)}" data-edit="time" data-i="${i}" aria-label="${esc(s.name)} 時間" style="height:44px;border:1.5px solid #cfd8e0;border-radius:10px;padding:0 8px;background:#fff">${typeTag(s)}<span style="flex:1;font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="act" data-act="editShift" data-i="${i}" data-m="-30">後面一起早 30 分</button>
+        <button class="act" data-act="editShift" data-i="${i}" data-m="30">後面一起晚 30 分</button>
+        <button class="act" style="color:var(--bad)" data-act="editDel" data-i="${i}">刪掉</button>
       </div>
-      <div class="hidden" id="gd-owner">
-        <h3 class="sub-h">管理（只有建立者看得到）</h3>
-        <label class="f"><span>群組名稱</span><input type="text" id="gd-rename" maxlength="40" autocomplete="off"></label>
-        <div class="btns">
-          <button type="button" class="btn small ghost" id="btn-gd-rename">改名</button>
-          <button type="button" class="btn small ghost" id="btn-gd-reset">重設邀請連結</button>
-        </div>
-        <p class="hint2">連結被轉傳出去時按「重設」：舊連結不能再用來加入，已經加入的人不受影響。</p>
-        <details class="more slim danger-zone" id="gd-del-box">
-          <summary>刪除這個群組</summary>
-          <p class="hint2">刪除後所有旅伴都看不到這個群組的願望清單和行程，邀請連結也會失效，刪了就沒辦法自己救回來。確定要刪，請打上群組名稱「<b id="gd-del-name"></b>」。</p>
-          <input type="text" id="gd-del-input" maxlength="40" autocomplete="off" aria-label="打上群組名稱確認刪除">
-          <div class="btns"><button type="button" class="btn small danger" id="btn-gd-del" disabled>刪除群組</button></div>
-        </details>
-      </div>
-      <h3 class="sub-h">成員</h3>
-      <div class="members" id="gd-members"></div>
-      <p class="hint2 hidden" id="gd-members-hint">旅伴換手機只要登入就好。如果他忘了密碼，按他旁邊的「釋放」，請他建立新帳號、用同一個暱稱重新點邀請連結，就能拿回原本加的點。</p>
-      <label class="f mt"><span>我在這個群組的暱稱 <small>（改了之後，你加過的點會一起顯示新名字）</small></span><input type="text" id="gd-nick" maxlength="20" autocomplete="off"></label>
-      <div class="btns">
-        <button type="button" class="btn small ghost" id="btn-gd-nick">更新暱稱</button>
-        <button type="button" class="btn small ghost" id="btn-gd-leave">離開群組</button>
-      </div>
-      <div class="msg" id="msg-gd" role="status"></div>
-    </div>
+      <button class="link" style="justify-content:flex-start;min-height:36px;font-size:14px" data-act="editAdd" data-i="${i}">＋ 在這站後面加一站</button>
+    </div>`).join('')}
+    ${d.stops.length?'':`<div class="card" style="padding:16px"><button class="link" data-act="editAdd" data-i="-1">＋ 加一站</button></div>`}
+  </div>
+  <div class="foot"><button class="btn" data-act="editSave">儲存修改</button><button class="link" data-act="editRevert">還原成 AI 排的原版</button></div>`;
+};
+document.addEventListener('change', e=>{
+  if(e.target.dataset.edit==='time' && editBuf){ const d=editBuf.data.days[editBuf.day]; d.stops[+e.target.dataset.i].time = e.target.value; d.stops.sort((a,b)=>toMin(a.time)-toMin(b.time)); render(); }
+});
+ACT.editDay = el => { editBuf.day=+el.dataset.i; render(); };
+ACT.editShift = el => { const d=editBuf.data.days[editBuf.day]; const i=+el.dataset.i, m=+el.dataset.m; d.stops.forEach((s,j)=>{ if(j>=i) s.time=fromMin(toMin(s.time)+m); }); render(); };
+ACT.editDel = el => { const d=editBuf.data.days[editBuf.day]; const s=d.stops.splice(+el.dataset.i,1)[0]; render(); toast('已刪掉「'+s.name+'」，按完成才會存'); };
+ACT.editAdd = el => {
+  const i=+el.dataset.i; const d=editBuf.data.days[editBuf.day]; const prev=d.stops[i];
+  const t0 = prev? fromMin(toMin(prev.time)+(+prev.stay_min||60)) : '10:00';
+  openSheet(`<div class="pad stack"><b style="font-size:18px">加一站</b>
+    <div class="field"><label class="lbl" for="addName">店名或景點</label><input id="addName" class="inp" placeholder="要能在 Google 地圖搜到"></div>
+    <div class="field"><span class="lbl">類型</span><div class="seg" id="addType" style="grid-template-columns:repeat(4,1fr)">${['吃','喝','玩','住'].map((v,k)=>`<button aria-pressed="${k===2}" data-act="addType" data-v="${v}">${v}</button>`).join('')}</div></div>
+    <div class="field"><label class="lbl" for="addTime">幾點</label><input id="addTime" type="time" class="inp" value="${t0}"></div>
+    <button class="btn" data-act="addDo">加進去</button><button class="link" data-act="closeSheet">取消</button></div>`);
+};
+ACT.addType = el => { el.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', b===el)); };
+ACT.addDo = () => {
+  const name=$('#addName').value.trim(); if(!name){ toast('先打名字'); return; }
+  const type = document.querySelector('#addType [aria-pressed="true"]').dataset.v;
+  const d=editBuf.data.days[editBuf.day];
+  const area = d.stops[0]? d.stops[0].area : '';
+  d.stops.push({time:$('#addTime').value||'10:00', name, area, type, meal:null, stay_min:60, note:'自己加的', open_status:'unknown', hours:'', parking:null, legs:[], alternatives:[]});
+  d.stops.sort((a,b)=>toMin(a.time)-toMin(b.time)); closeSheet(); render();
+};
+ACT.editSave = () => { const t=getTrip(editBuf.id); t.data=editBuf.data; putTrip(t); const id=editBuf.id; tripDay=editBuf.day; editBuf=null; toast('改好了'); go('trip/'+id); };
+ACT.editRevert = () => openSheet(`<div class="pad stack"><b style="font-size:18px">還原成 AI 排的原版？</b><div class="note amber">你換過的店、改過的時間都會回到剛貼上時的樣子。</div><button class="btn" data-act="editRevert2">還原</button><button class="link" data-act="closeSheet">不要</button></div>`);
+ACT.editRevert2 = () => { const t=getTrip(editBuf.id); t.data=JSON.parse(JSON.stringify(t.original)); t.progress={}; putTrip(t); const id=editBuf.id; editBuf=null; closeSheet(); toast('已還原'); go('trip/'+id); };
 
-    <div class="card" id="ng-card">
-      <h2 class="step-h">建立新群組</h2>
-      <p class="hint2" id="ng-login">先在最上面登入，才能建立群組。</p>
-      <div id="ng-form" class="hidden">
-        <div class="row stack">
-          <label class="f"><span>群組名稱</span><input type="text" id="ng-name" maxlength="40" placeholder="例：家人、10月墾丁團" autocomplete="off"></label>
-          <label class="f"><span>你在群組裡的暱稱</span><input type="text" id="ng-nick" maxlength="20" placeholder="例：佩芝" autocomplete="off"></label>
-        </div>
-        <div class="btns"><button type="button" class="btn" id="btn-ng">建立</button></div>
-      </div>
-      <div class="msg" id="msg-ng" role="status"></div>
-    </div>
+/* ================= SHARE / EXPORT ================= */
+function tripText(t){
+  const out=[t.title];
+  t.data.days.forEach((d,i)=>{ out.push(''); out.push((t.data.days.length>1?'第 '+(i+1)+' 天 ':'')+mdw(d.date)); d.stops.forEach(s=>{ out.push(`${s.time} ${s.name}${s.area?'（'+s.area+'）':''}`); out.push('  '+gm.search(dest(s))); }); });
+  return out.join('\n');
+}
+async function packTrip(t){
+  const json = JSON.stringify({t:t.title, m:t.mode, d:t.data});
+  if(window.CompressionStream){
+    const cs = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const buf = new Uint8Array(await new Response(cs).arrayBuffer());
+    let bin=''; buf.forEach(b=>bin+=String.fromCharCode(b));
+    return 'z'+btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  return 'j'+btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function unpackTrip(s){
+  const kind=s[0]; const b64=s.slice(1).replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64);
+  if(kind==='z'){ const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0)); const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')); return JSON.parse(await new Response(ds).text()); }
+  return JSON.parse(decodeURIComponent(escape(bin)));
+}
+function icsFor(t){
+  const pad=n=>String(n).padStart(2,'0');
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z';
+  const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//letsgo//zh-TW','CALSCALE:GREGORIAN'];
+  const escI = s=>String(s||'').replace(/\\/g,'\\\\').replace(/[,;]/g,m=>'\\'+m).replace(/\n/g,'\\n');
+  t.data.days.forEach(d=>d.stops.forEach((s,i)=>{
+    const st=toMin(s.time); const next=d.stops[i+1]; let en = st + (+s.stay_min||60); if(next && toMin(next.time)>st) en=Math.min(en, toMin(next.time)); if(en<=st) en=st+30;
+    const day=d.date.replace(/-/g,'');
+    const dt = m=>day+'T'+pad(Math.floor(m/60))+pad(m%60)+'00';
+    L.push('BEGIN:VEVENT','UID:'+t.id+'-'+d.date+'-'+i+'@letsgo','DTSTAMP:'+stamp,'DTSTART;TZID=Asia/Taipei:'+dt(st),'DTEND;TZID=Asia/Taipei:'+dt(Math.min(en,1439)),
+      'SUMMARY:'+escI((s.meal&&s.meal!=='null'?s.meal+'：':'')+s.name),'LOCATION:'+escI(dest(s)),'DESCRIPTION:'+escI([s.note, s.parking?'停車：'+s.parking:'', gm.search(dest(s))].filter(Boolean).join('\n')),'END:VEVENT');
+  }));
+  L.push('END:VCALENDAR'); return L.join('\r\n');
+}
+routes.share = (id) => {
+  const t=getTrip(id); if(!t) return routes.trip(id);
+  return header('分享與匯出',tripBack(id)) + `<div class="pad stack">
+    <div class="sub">${esc(t.title)}</div>
+    <section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px"><b style="font-size:17px">唯讀分享連結</b><span class="hint">行程整份放在連結裡，拿到的人不用裝、不用登入就能看，不能改。改了行程要重新分享。</span>
+      <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="shareLink" data-id="${esc(id)}">分享到 LINE…</button><button class="btn2" style="flex:1" data-act="copyLink" data-id="${esc(id)}">複製連結</button></div></section>
+    <section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px"><b style="font-size:17px">加到手機行事曆</b><span class="hint">每一站變成一個行程，含地址和地圖連結（.ics 檔）</span><button class="btn2" data-act="ics" data-id="${esc(id)}">下載行事曆檔</button></section>
+    <section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px"><b style="font-size:17px">複製成文字</b><span class="hint">時間＋站名＋地圖連結，貼到記事本或群組</span><button class="btn2" data-act="copyTxt" data-id="${esc(id)}">複製文字</button></section>
+  </div>`;
+};
+async function shareUrl(id){ const t=getTrip(id); return location.origin+location.pathname+'#view/'+await packTrip(t); }
+ACT.shareLink = async el => { const url=await shareUrl(el.dataset.id); const t=getTrip(el.dataset.id);
+  if(navigator.share){ try{ await navigator.share({title:t.title, text:t.title+'（行程）', url}); }catch(e){} }
+  else location.href='https://line.me/R/msg/text/?'+enc(t.title+' '+url); };
+ACT.copyLink = async el => { const ok=await copyText(await shareUrl(el.dataset.id)); toast(ok?'連結已複製':'複製失敗'); };
+ACT.copyTxt = async el => { const ok=await copyText(tripText(getTrip(el.dataset.id))); toast(ok?'已複製':'複製失敗'); };
+ACT.ics = el => { const t=getTrip(el.dataset.id); const blob=new Blob([icsFor(t)],{type:'text/calendar'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(t.title||'trip')+'.ics'; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000); };
 
-    <div class="card">
-      <h2 class="step-h">用邀請連結加入</h2>
-      <label class="f"><span>貼上旅伴傳來的連結</span>
-        <input type="text" id="jl-link" placeholder="https://p60732.github.io/quick-trip/#join=…" autocomplete="off">
-      </label>
-      <div class="btns"><button type="button" class="btn small" id="btn-jl">下一步</button></div>
-      <div class="msg" id="msg-jl" role="status"></div>
-    </div>
-  </section>
+/* read-only view */
+let viewCache = null;
+routes.view = (packed) => {
+  if(!viewCache || viewCache.key!==packed){
+    viewCache = {key:packed, t:null};
+    unpackTrip(packed).then(o=>{ viewCache.t={id:'view', title:o.t, mode:o.m, data:o.d, saved:true}; render(); }).catch(()=>{ viewCache.t='bad'; render(); });
+    return header('讀取中…','home')+'<div class="pad"><div class="note blue">正在打開分享的行程…</div></div>';
+  }
+  if(viewCache.t==='bad') return header('打不開','home')+'<div class="pad"><div class="note terra">這個連結不完整，請對方重新分享。</div></div>';
+  const t=viewCache.t;
+  if(tripDay>=t.data.days.length) tripDay=0;
+  const d=t.data.days[tripDay];
+  return header(esc(t.title),'home') + `<div class="pad stack"><div class="note blue">這是別人分享的唯讀行程。想留著自己用，按下面「存到我的行程」。</div></div>
+    ${t.data.days.length>1?`<div class="tabs" style="margin-top:12px">${t.data.days.map((dd,i)=>`<button aria-selected="${i===tripDay}" data-act="day" data-i="${i}">第 ${i+1} 天 · ${esc(mdw(dd.date))}</button>`).join('')}</div>`:'<div style="height:12px"></div>'}
+    <div class="stack" style="padding:0 16px 16px 8px">${d.stops.map((_,si)=>stopHTML(t,tripDay,si,{noswap:true})).join('')}</div>
+    <div class="foot"><button class="btn" data-act="saveView">存到我的行程</button></div>`;
+};
+ACT.saveView = () => { const v=viewCache.t; const t={id:uid(), title:v.title, place:v.title, mode:v.mode, data:v.data, original:JSON.parse(JSON.stringify(v.data)), saved:true, createdAt:Date.now()}; saveTrip(t); toast('存好了'); go('trip/'+t.id); };
 
-  <footer>行程由 Claude 產生，營業時間與班次出發前請再點地圖確認。登入後，你的清單、行程和群組存在網站管理者的 Google 試算表（密碼只存加密後的雜湊）；家裡地址只存在這支手機，分享行程時也不會帶出去。</footer>
-</div>
-<script src="js/config.js?v=da7d879b"></script>
-<script src="js/sync.js?v=ac706b73"></script>
-<script src="js/logic.js?v=49a081ac"></script>
-<script src="js/ui.js?v=cea9fdc9"></script>
+/* ================= boot ================= */
+if('serviceWorker' in navigator && location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+</script>
+<script src="group.js"></script>
 </body>
 </html>
