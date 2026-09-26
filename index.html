@@ -229,6 +229,7 @@ routes.home = () => {
     <button class="bigcard" data-go="nearby"><span class="ic" style="background:var(--terra-l);color:var(--terra)">${ICON.pin}</span><span><b>路過找吃</b><span class="d">人在外面，馬上找附近吃喝</span></span></button>
     <button class="bigcard" data-go="form"><span class="ic" style="background:var(--blue-l);color:var(--blue)">${ICON.go}</span><span><b>直接出發</b><span class="d">給一個地點，排出吃喝玩行程</span></span></button>
     <button class="bigcard" data-go="mytrips"><span class="ic" style="background:var(--sage-l);color:var(--sage)">${ICON.list}</span><span><b>我的行程</b><span class="d">${n? '存了 '+n+' 份行程' : '存過的行程會放在這裡'}</span></span></button>
+    <button class="bigcard" data-go="pocket"><span class="ic" style="background:var(--amber-l,#fbf0d9);color:var(--amber,#b7791f)">${ICON.pin}</span><span><b>口袋名單</b><span class="d">${pocket().length? '存了 '+pocket().length+' 家，隨時排進行程' : '路上看到想去的店，貼連結存起來'}</span></span></button>
   </div>
   <div class="pad" style="margin-top:20px;display:flex;flex-direction:column;gap:4px">
     <button class="link" data-go="prefs">吃喝玩偏好</button>
@@ -278,79 +279,192 @@ routes.nearby = () => {
   </div>`;
 };
 routes.nearby_after = () => { if(near.state==='idle') ACT.nearLocate(); };
-/* 路過找吃：在 Google 地圖找到的店，貼回來處理 */
-const pocket = () => LS.get('pocket', []);
-function pocketBox(){
-  const list = pocket();
+/* ================= 口袋名單 ================= */
+// 資料：{id,name,area,type,url,at,used:[{tripId,title}]}
+const pocket = () => LS.get('pocket', []).map((p,i)=>({id:p.id||('pk'+i+'_'+(p.name||'').length), type:p.type||'吃', used:p.used||[], at: typeof p.at==='number'? p.at : Date.now(), ...p, id:p.id||('pk'+i+'_'+(p.name||'').length)}));
+const savePocket = l => LS.set('pocket', l.slice(0,200));
+const PK_TYPES = ['吃','喝','玩','住'];
+function shortArea(a){ const m=/([^\s縣市]{1,4}[鄉鎮市區])/.exec(String(a||'').replace(/^\d+/,'').replace(/^.{0,3}[縣市]/,'')); return m? m[1] : ''; }
+function pkInfo(raw, nameInput){
+  // 讀貼上的內容＋店名欄（店名欄可能已經被後端自動填好，地址放在 data-area）
+  const p = parseShared(raw||''); const el = nameInput;
+  const name = (el && el.value || '').trim() || p.name;
+  return {name, url:p.url||'', area:(el && el.dataset.area) || p.area || ''};
+}
+function pkAddBox(prefix, opts={}){
+  const st = pkDraft[prefix] || {url:'', name:'', type: opts.type||'吃'};
   return `<section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
-    <b style="font-size:17px">找到想去的？貼回來</b>
-    <span class="hint" style="margin-top:-4px">在 Google 地圖點進那家店 →「分享」→「複製連結」，貼在下面。</span>
-    <textarea id="pkUrl" class="inp" data-resolve="pkName|pkNote" style="min-height:64px;font-family:inherit;font-size:15px" placeholder="長按貼上 Google 地圖連結">${esc(near.pkUrl||'')}</textarea>
-    <input id="pkName" class="inp" placeholder="店名（貼上連結後自動帶入）" value="${esc(near.pkName||'')}">
-    <div id="pkNote" class="hint" style="color:var(--amber2)"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button class="btn2" data-act="pkNav">導航過去</button>
-      <button class="btn2" data-act="pkSave">存到口袋名單</button>
-      <button class="btn2" data-act="pkTrip">加進我的行程</button>
-      <button class="btn2" data-act="pkGroup">加進團的清單</button>
+    <b style="font-size:17px">${opts.title||'貼上 Google 地圖連結'}</b>
+    <span class="hint" style="margin-top:-4px">在 Google 地圖點進那家店 →「分享」→「複製連結」，貼在下面，店名會自動帶出來。</span>
+    <textarea id="${prefix}Url" class="inp" data-resolve="${prefix}Name|${prefix}Note" data-pk="${prefix}" style="min-height:60px;font-family:inherit;font-size:15px" placeholder="長按貼上 Google 地圖連結">${esc(st.url)}</textarea>
+    <input id="${prefix}Name" class="inp" data-pk="${prefix}" placeholder="店名（自動帶入，可以改）" value="${esc(st.name)}" data-area="${esc(st.area||'')}">
+    <div id="${prefix}Note" class="hint" style="color:var(--amber2)"></div>
+    <div class="chips" role="radiogroup" aria-label="類型">${PK_TYPES.map(t=>`<button class="chip terra" role="radio" aria-pressed="${st.type===t}" data-act="pkType" data-p="${prefix}" data-v="${t}">${t}</button>`).join('')}</div>
+    ${opts.buttons}
+  </section>`;
+}
+const pkDraft = {};
+document.addEventListener('input', e=>{ const p=e.target.dataset.pk; if(!p) return; const d=pkDraft[p]=pkDraft[p]||{type:'吃'}; if(e.target.tagName==='TEXTAREA') d.url=e.target.value; else d.name=e.target.value; });
+document.addEventListener('change', e=>{ const p=e.target.dataset.pk; if(!p||e.target.tagName==='TEXTAREA') return; const d=pkDraft[p]=pkDraft[p]||{type:'吃'}; d.name=e.target.value; d.area=e.target.dataset.area||''; });
+ACT.pkType = el => { const d=pkDraft[el.dataset.p]=pkDraft[el.dataset.p]||{}; d.type=el.dataset.v; el.parentElement.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed', c===el)); };
+function pkReadBox(prefix){
+  const info = pkInfo($('#'+prefix+'Url').value, $('#'+prefix+'Name'));
+  if(!info.name){ $('#'+prefix+'Note').textContent = $('#'+prefix+'Url').value.trim()? '請在「店名」打一下這家店的名字' : '先貼上 Google 地圖連結'; $('#'+prefix+'Name').focus(); return null; }
+  info.type = (pkDraft[prefix]||{}).type || '吃';
+  return info;
+}
+function pkStore(info){
+  const l = pocket();
+  const dup = l.find(x=>x.name===info.name || (info.url && x.url===info.url));
+  if(dup){ toast('「'+info.name+'」已經在口袋名單裡了'); return dup; }
+  const item = {id:uid(), name:info.name, area:info.area||'', type:info.type||'吃', url:info.url||'', at:Date.now(), used:[]};
+  l.unshift(item); savePocket(l); return item;
+}
+
+/* 路過找吃頁上的貼上框 */
+function pocketBox(){
+  if(!pkDraft.nb) pkDraft.nb = {type: /咖啡|手搖|甜點/.test(near.cat)?'喝':'吃'};
+  const n = pocket().length;
+  return pkAddBox('nb', {title:'找到想去的？貼回來', buttons:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn2" data-act="nbNav">導航過去</button>
+      <button class="btn2" data-act="nbSave">存到口袋名單</button>
+      <button class="btn2" data-act="nbTrip">加進我的行程</button>
+      <button class="btn2" data-act="nbGroup">加進團的清單</button>
     </div>
-  </section>
-  ${list.length?`<h2 class="sec">口袋名單（${list.length}）</h2><div class="card list">${list.map((p,i)=>`<div class="rowitem" style="gap:6px;padding-right:4px">
-      <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</b><span class="sub" style="font-size:12px">${esc(p.at||'')}</span></span>
-      <a class="act" style="border:none" href="${esc(gm.dir(p.name, 'driving'))}" target="_blank" rel="noopener">導航</a>
-      <a class="act" style="border:none" href="${esc(p.url||gm.search(p.name))}" target="_blank" rel="noopener">看評價</a>
-      <button class="act" style="border:none;color:var(--faint)" data-act="pkDel" data-i="${i}" aria-label="從口袋名單刪掉${esc(p.name)}">✕</button></div>`).join('')}</div>`:''}`;
+    ${n?`<button class="link" style="justify-content:flex-start;min-height:32px;padding:0" data-go="pocket">看口袋名單（${n}）›</button>`:''}`});
 }
-document.addEventListener('input', e=>{ if(e.target.id==='pkUrl') near.pkUrl=e.target.value; if(e.target.id==='pkName') near.pkName=e.target.value; });
-document.addEventListener('change', e=>{ if(e.target.id==='pkName') near.pkName=e.target.value; });
-function pkRead(){
-  const raw = ($('#pkUrl').value||'').trim(); const p = parseShared(raw);
-  const name = ($('#pkName').value||'').trim() || p.name;
-  if(!name){ $('#pkNote').textContent = raw? '請在「店名」打一下這家店的名字' : '先貼上 Google 地圖連結'; ($('#pkName')).focus(); return null; }
-  return {name, url:p.url||'', area:p.area||'', type: /咖啡|手搖|甜點/.test(near.cat)?'喝':'吃'};
+ACT.nbNav = () => { const p=pkReadBox('nb'); if(!p) return; window.open(p.url || gm.dir(dest(p), 'driving'), '_blank'); };
+ACT.nbSave = () => { const p=pkReadBox('nb'); if(!p) return; pkStore(p); pkDraft.nb={type:p.type}; render(); undoLessToast('存到口袋名單了', 'pocket', '去看看'); };
+ACT.nbTrip = () => { const p=pkReadBox('nb'); if(!p) return; const it=pkStore(p); pkDraft.nb={type:p.type}; pickTripFor([it.id]); };
+ACT.nbGroup = () => { const p=pkReadBox('nb'); if(!p) return; pkGroupPick([p]); };
+function undoLessToast(msg, route, label){
+  const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status');
+  t.innerHTML = esc(msg)+` <button data-go="${route}" style="margin-left:10px;border:none;background:none;color:#cfe3dc;font-weight:700;min-height:32px">${esc(label)}</button>`;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 4000);
 }
-ACT.pkNav = () => { const p=pkRead(); if(!p) return; window.open(p.url || gm.dir(p.name+' '+(p.area||''), 'driving'), '_blank'); };
-ACT.pkSave = () => { const p=pkRead(); if(!p) return; const l=pocket(); const d=new Date(); l.unshift({...p, at:(d.getMonth()+1)+'/'+d.getDate()+' 存的'}); LS.set('pocket', l.slice(0,50)); near.pkUrl=''; near.pkName=''; toast('存到口袋名單了'); render(); };
-ACT.pkDel = el => { const l=pocket(); l.splice(+el.dataset.i,1); LS.set('pocket', l); render(); };
-ACT.pkTrip = () => {
-  const p=pkRead(); if(!p) return; window.__pk = p;
-  const today = ymd(new Date());
+
+/* 口袋名單頁 */
+let pkUI = {sel:null, filter:'全部', purpose:null};  // sel: Set 或 null；purpose: 'form' 表示從直接出發過來挑
+routes.pocket = (mode) => {
+  if(mode==='pick' && !pkUI.sel){ pkUI.sel=new Set(); pkUI.purpose='form'; }
+  const all = pocket();
+  const areas = [...new Set(all.map(p=>shortArea(p.area)).filter(Boolean))];
+  const f = pkUI.filter;
+  const list = all.filter(p=> f==='全部' || p.type===f || shortArea(p.area)===f);
+  const sel = pkUI.sel;
+  const back = pkUI.purpose==='form'? 'form' : 'home';
+  const right = all.length ? (sel? `<button class="hbtn" data-act="pkSelDone">完成</button>` : `<button class="hbtn" data-act="pkSelStart">挑選</button>`) : '';
+  const TYPE_CLS2 = {'吃':'t-eat','喝':'t-drink','玩':'t-play','住':'t-stay'};
+  const rows = list.map(p=>{
+    const on = sel && sel.has(p.id);
+    const used = (p.used||[]).filter(u=>getTrip(u.tripId));
+    return `<div class="rowitem" style="gap:8px;padding-right:4px;${on?'background:var(--sage-l)':''}">
+      ${sel?`<input type="checkbox" data-pksel="${esc(p.id)}" ${on?'checked':''} aria-label="選${esc(p.name)}" style="width:22px;height:22px;accent-color:var(--sage);flex-shrink:0">`:''}
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px" ${sel?`data-pksel-row="${esc(p.id)}"`:''}>
+        <span style="display:flex;gap:6px;align-items:center"><span class="tag ${TYPE_CLS2[p.type]||'t-eat'}" style="font-size:12px;padding:1px 8px">${esc(p.type)}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</b></span>
+        <span class="sub" style="font-size:12px">${esc([shortArea(p.area), new Date(p.at).getMonth()+1+'/'+new Date(p.at).getDate()+' 存的'].filter(Boolean).join(' · '))}${used.length?` · <span style="color:var(--ok);font-weight:700">已排進：${esc(used.map(u=>u.title).join('、'))}</span>`:''}</span>
+      </span>
+      ${sel?'':`<a class="act" style="border:none;padding:0 8px" href="${esc(gm.dir(dest(p), 'driving'))}" target="_blank" rel="noopener">導航</a>
+      <a class="act" style="border:none;padding:0 8px" href="${esc(p.url||gm.search(dest(p)))}" target="_blank" rel="noopener">評價</a>
+      <button class="act" style="border:none;padding:0 8px" data-act="pkMore" data-id="${esc(p.id)}" aria-label="${esc(p.name)} 更多">⋯</button>`}
+    </div>`; }).join('');
+  if(!pkDraft.pg) pkDraft.pg = {type:'吃'};
+  return header(pkUI.purpose==='form'?'從口袋名單挑':'口袋名單', back, right) + `<div class="pad stack" style="padding-bottom:${sel?'140px':'32px'}">
+    ${sel? `<div class="note blue">${pkUI.purpose==='form'?'勾想排進「直接出發」的店，按下面的按鈕帶回去。':'勾好之後，按下面的按鈕加進行程。'}</div>` :
+      pkAddBox('pg', {title:'新增一家', buttons:`<button class="btn" data-act="pgSave">存起來</button>`})}
+    ${all.length? `<div class="chips" style="gap:6px">${['全部',...PK_TYPES,...areas].map(x=>`<button class="chip" style="min-height:36px" aria-pressed="${f===x}" data-act="pkFilter" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <div class="card list">${rows || '<div class="rowitem sub">這個分類還沒有。</div>'}</div>`
+      : `<div class="card" style="padding:18px"><div class="sub" style="line-height:1.6">還沒有存任何店。<br>在 Google 地圖看到想去的，就「分享」→「複製連結」貼上來存著，之後排行程時一次加進去。</div></div>`}
+  </div>
+  ${sel? `<div class="foot" style="position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--bg);border-top:1px solid var(--line)">
+      <div class="hint" style="text-align:center">已選 ${sel.size} 家</div>
+      ${pkUI.purpose==='form'? `<button class="btn blue" data-act="pkToForm" ${sel.size?'':'disabled'}>帶回直接出發（${sel.size}）</button>` :
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn blue" style="font-size:16px" data-act="pkToForm" ${sel.size?'':'disabled'}>加進直接出發</button><button class="btn" style="font-size:16px" data-act="pkToTrip" ${sel.size?'':'disabled'}>加進我的行程</button></div>`}
+    </div>`:''}`;
+};
+ACT.pgSave = () => { const p=pkReadBox('pg'); if(!p) return; pkStore(p); pkDraft.pg={type:p.type}; toast('存起來了'); render(); };
+ACT.pkFilter = el => { pkUI.filter = el.dataset.v; render(); };
+ACT.pkSelStart = () => { pkUI.sel = new Set(); pkUI.purpose=null; render(); };
+ACT.pkSelDone = () => { const was=pkUI.purpose; pkUI = {sel:null, filter:pkUI.filter, purpose:null}; if(was==='form') go('form'); else render(); };
+document.addEventListener('change', e=>{ const id=e.target.dataset.pksel; if(!id||!pkUI.sel) return; if(e.target.checked) pkUI.sel.add(id); else pkUI.sel.delete(id); render(); });
+document.addEventListener('click', e=>{ const r=e.target.closest('[data-pksel-row]'); if(!r||!pkUI.sel) return; const id=r.dataset.pkselRow; if(pkUI.sel.has(id)) pkUI.sel.delete(id); else pkUI.sel.add(id); render(); });
+ACT.pkMore = el => {
+  const p = pocket().find(x=>x.id===el.dataset.id); if(!p) return;
+  openSheet(`<div class="pad stack"><b style="font-size:18px">${esc(p.name)}</b>
+    <div class="field"><label class="lbl" for="pkEditName" style="font-size:15px">店名</label><input id="pkEditName" class="inp" value="${esc(p.name)}"></div>
+    <div class="chips" id="pkEditType">${PK_TYPES.map(t=>`<button class="chip terra" aria-pressed="${p.type===t}" data-act="addType" data-v="${t}">${t}</button>`).join('')}</div>
+    ${p.area?`<div class="sub">${esc(p.area)}</div>`:''}
+    <button class="btn" data-act="pkEditSave" data-id="${esc(p.id)}">存檔</button>
+    <button class="btn2" data-act="pkOneTrip" data-id="${esc(p.id)}">加進我的行程</button>
+    <button class="btn2" data-act="pkOneGroup" data-id="${esc(p.id)}">加進團的清單</button>
+    <button class="btn2" style="color:var(--bad)" data-act="pkRemove" data-id="${esc(p.id)}">從口袋名單刪掉</button>
+    <button class="link" data-act="closeSheet">關閉</button></div>`);
+};
+ACT.pkEditSave = el => { const l=pocket(); const p=l.find(x=>x.id===el.dataset.id); p.name=$('#pkEditName').value.trim()||p.name; const t=document.querySelector('#pkEditType [aria-pressed="true"]'); if(t) p.type=t.dataset.v; savePocket(l); closeSheet(); render(); };
+ACT.pkRemove = el => { savePocket(pocket().filter(x=>x.id!==el.dataset.id)); closeSheet(); toast('刪掉了'); render(); };
+ACT.pkOneTrip = el => { closeSheet(); pickTripFor([el.dataset.id]); };
+ACT.pkOneGroup = el => { const p=pocket().find(x=>x.id===el.dataset.id); closeSheet(); pkGroupPick([p]); };
+ACT.pkToForm = () => {
+  const ids=[...pkUI.sel]; const items=pocket().filter(p=>ids.includes(p.id));
+  form.must = items.map(p=>({id:p.id, name:p.name, area:p.area, type:p.type, url:p.url}));
+  if(!form.place){ const a=shortArea(items[0]&&items[0].area); if(a) form.place=a; }
+  saveForm(); pkUI={sel:null, filter:pkUI.filter, purpose:null}; toast('帶進直接出發了'); go('form');
+};
+ACT.pkToTrip = () => { const ids=[...pkUI.sel]; pkUI={sel:null, filter:pkUI.filter, purpose:null}; pickTripFor(ids); };
+
+/* 加進我的行程：選行程 → 選哪一天 */
+let pickIds = [];
+function pickTripFor(ids){
+  pickIds = ids; const today = ymd(new Date());
   const list = trips().filter(t=>t.data.days[t.data.days.length-1].date>=today);
-  openSheet(`<div class="pad stack"><b style="font-size:18px">「${esc(p.name)}」加進哪份行程？</b>
-    ${list.length?`<div class="card list">${list.map(t=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pkTrip2" data-id="${esc(t.id)}"><span style="flex:1"><b>${esc(t.title)}</b><br><span class="sub">${esc(mdw(t.data.days[0].date))}</span></span>${ICON.chev}</button>`).join('')}</div>`:'<div class="sub">還沒有要去的行程。</div>'}
-    <button class="btn2" data-act="pkTrip2" data-id="new">開一份今天的新行程</button>
+  const names = pocket().filter(p=>ids.includes(p.id)).map(p=>p.name);
+  openSheet(`<div class="pad stack"><b style="font-size:18px">${esc(names.length>1? names.length+' 家':'「'+names[0]+'」')}加進哪份行程？</b>
+    ${list.length?`<div class="card list">${list.map(t=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pickTrip" data-id="${esc(t.id)}"><span style="flex:1"><b>${esc(t.title)}</b><br><span class="sub">${esc(mdw(t.data.days[0].date))}${t.data.days.length>1?' 起 '+t.data.days.length+' 天':''} · ${tripStats(t).n} 站</span></span>${ICON.chev}</button>`).join('')}</div>`:'<div class="sub">還沒有要去的行程。</div>'}
+    <button class="btn2" data-act="pickTrip" data-id="new">開一份今天的新行程</button>
     <button class="link" data-act="closeSheet">取消</button></div>`);
+}
+ACT.pickTrip = el => {
+  const id = el.dataset.id;
+  if(id!=='new'){ const t=getTrip(id); if(t.data.days.length>1){
+    openSheet(`<div class="pad stack"><b style="font-size:18px">加在「${esc(t.title)}」的哪一天？</b>
+      <div class="card list">${t.data.days.map((d,i)=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pickDay" data-id="${esc(id)}" data-i="${i}"><span style="flex:1"><b>第 ${i+1} 天</b> · ${esc(mdw(d.date))}<br><span class="sub">${d.stops.length} 站${d.stops.length?'，最後 '+esc(d.stops[d.stops.length-1].time)+' '+esc(d.stops[d.stops.length-1].name):''}</span></span>${ICON.chev}</button>`).join('')}</div>
+      <button class="link" data-act="closeSheet">取消</button></div>`); return; } }
+  addPocketToTrip(id, 0);
 };
-ACT.pkTrip2 = el => {
-  const p = window.__pk; const now = new Date(); const tm = fromMin(Math.ceil((now.getHours()*60+now.getMinutes())/15)*15);
-  const stop = {time:tm, name:p.name, area:p.area, type:p.type, meal:null, stay_min:60, note:'路過找吃加的', open_status:'unknown', hours:'', parking:null, legs:[], alternatives:[], mapUrl:p.url};
-  let t;
-  if(el.dataset.id==='new'){
+ACT.pickDay = el => addPocketToTrip(el.dataset.id, +el.dataset.i);
+function addPocketToTrip(tripId, di){
+  const items = pocket().filter(p=>pickIds.includes(p.id)); if(!items.length) return;
+  const now = new Date(); let t;
+  if(tripId==='new'){
     const d = ymd(now);
-    t = {id:uid(), title:(near.area||near.manual||'路過')+' '+mdw(d), place:near.area||near.manual||'', mode:'開車', span:'半天', data:{title:'', days:[{day:1, date:d, stops:[stop]}]}, saved:true, createdAt:Date.now()};
-    t.original = JSON.parse(JSON.stringify(t.data));
-  } else {
-    t = getTrip(el.dataset.id); const today = ymd(now);
-    const d = t.data.days.find(x=>x.date===today) || t.data.days[0];
-    d.stops.push(stop); d.stops.sort((a,b)=>toMin(a.time)-toMin(b.time));
-  }
-  saveTrip(t); closeSheet(); toast('加進「'+t.title+'」了'); go('trip/'+t.id);
-};
-ACT.pkGroup = async el => {
-  const p=pkRead(); if(!p) return;
+    t = {id:uid(), title:(shortArea(items[0].area)||near.area||near.manual||'說走就走')+' '+mdw(d), place:shortArea(items[0].area)||'', mode:'開車', span:'半天', data:{title:'', days:[{day:1, date:d, stops:[]}]}, saved:true, createdAt:Date.now()};
+    t.original = {title:'', days:[{day:1,date:d,stops:[]}]};
+  } else t = getTrip(tripId);
+  const day = t.data.days[di] || t.data.days[0];
+  // 從當天最後一站之後開始排；新行程從現在（取 15 分）開始
+  let cur = day.stops.length ? toMin(day.stops[day.stops.length-1].time) + (+day.stops[day.stops.length-1].stay_min||60) : Math.ceil((now.getHours()*60+now.getMinutes())/15)*15;
+  items.forEach(p=>{ day.stops.push({time:fromMin(cur), name:p.name, area:p.area, type:p.type, meal:null, stay_min:60, note:'口袋名單', open_status:'unknown', hours:'', parking:null, legs:[], alternatives:[], mapUrl:p.url}); cur += 60; });
+  day.stops.sort((a,b)=>toMin(a.time)-toMin(b.time));
+  saveTrip(t);
+  const l = pocket(); l.forEach(p=>{ if(pickIds.includes(p.id)){ p.used = (p.used||[]).filter(u=>u.tripId!==t.id).concat([{tripId:t.id, title:t.title}]); } }); savePocket(l);
+  closeSheet(); toast(items.length+' 家加進「'+t.title+'」了，時間可以到「編輯」調'); go('trip/'+t.id);
+}
+
+/* 加進團的清單 */
+async function pkGroupPick(items){
   if(!API_URL || typeof loggedIn!=='function' || !loggedIn()){ toast('要先登入才能加進團'); go('login'); return; }
-  window.__pk = p;
+  window.__pkg = items;
   try{
     const d = await api('myTrips');
     if(!d.trips.length){ toast('你還沒有進行中的團'); return; }
-    openSheet(`<div class="pad stack"><b style="font-size:18px">「${esc(p.name)}」加進哪一團的清單？</b>
+    openSheet(`<div class="pad stack"><b style="font-size:18px">「${esc(items[0].name)}」加進哪一團的清單？</b>
       <div class="card list">${d.trips.map(t=>`<button class="rowitem" style="width:100%;border:none;border-bottom:1px solid var(--line2);background:none;text-align:left" data-act="pkGroup2" data-id="${esc(t.tripId)}"><span style="flex:1"><b>${esc(t.title)}</b><br><span class="sub">${t.stage==='collect'?'收集中':'會先進候補'}</span></span>${ICON.chev}</button>`).join('')}</div>
       <button class="link" data-act="closeSheet">取消</button></div>`);
   }catch(e){ toast(e.message); }
-};
+}
 ACT.pkGroup2 = async el => {
-  const p = window.__pk;
-  try{ const r = await api('addPlace', {tripId:el.dataset.id, name:p.name, type:p.type, note:p.url && p.url.length<90?'地圖：'+p.url:''}); closeSheet(); toast(r.status==='backlog'?'加進候補了':'加進清單了'); }
+  const items = window.__pkg || [];
+  try{ let last; for(const p of items){ last = await api('addPlace', {tripId:el.dataset.id, name:p.name, type:p.type, note:p.url && p.url.length<90?'地圖：'+p.url:''}); } closeSheet(); toast(last && last.status==='backlog'?'加進候補了':'加進清單了'); }
   catch(e){ toast(e.message); }
 };
 function nearLink(kw){
@@ -461,6 +575,8 @@ routes.form = () => {
     <div class="field"><span class="lbl">有多少時間</span><div class="seg" style="grid-template-columns:repeat(4,1fr)">${['半天','一天','兩天一夜','三天兩夜'].map(v=>`<button aria-pressed="${form.span===v}" data-act="fSet" data-k="span" data-v="${v}">${v}</button>`).join('')}</div></div>
     <div class="field"><span class="lbl">怎麼去</span><div class="seg" style="grid-template-columns:repeat(3,1fr)">${['開車','大眾運輸','機車'].map(v=>`<button aria-pressed="${form.mode===v}" data-act="fSet" data-k="mode" data-v="${v}">${v}</button>`).join('')}</div>
       <span class="hint">${form.mode==='大眾運輸'?'每段會附上車站、下車站、時間和多久一班':'每站附停車場'}</span></div>
+    <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">一定要去（選填）</span><button class="hbtn" data-act="fPickPocket">從口袋名單挑</button></div>
+      ${(form.must||[]).length? `<div class="chips">${form.must.map(m=>`<span class="chip" style="gap:4px">${esc(m.name)}<button data-act="fMustRm" data-id="${esc(m.id)}" aria-label="移除 ${esc(m.name)}" style="border:none;background:none;padding:0 2px;font-size:16px;color:var(--mute)">✕</button></span>`).join('')}</div><span class="hint">AI 會把這幾家排進去</span>` : `<span class="hint">存在口袋名單裡的店，可以指定一定要排</span>`}</div>
     <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">吃喝玩偏好</span><button class="hbtn" data-go="prefs">修改</button></div>
       <div class="chips">${prefSummary().map(s=>`<span class="chip" style="border-style:dashed">${esc(s)}</span>`).join('')}</div></div>
     <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">要排哪幾餐</span><button class="hbtn" data-go="meals">用餐模板</button></div>
@@ -483,6 +599,8 @@ document.addEventListener('input', e=>{
   const f = e.target.dataset.f; if(f){ form[f] = e.target.value; saveForm(); if(f==='date') render(); }
 });
 document.addEventListener('change', e=>{ const f=e.target.dataset.fc; if(f){ form[f]=e.target.checked; saveForm(); } });
+ACT.fPickPocket = () => { const p=$('#fPlace'); if(p){ form.place=p.value.trim(); saveForm(); } pkUI={sel:new Set((form.must||[]).map(m=>m.id)), filter:'全部', purpose:'form'}; go('pocket/pick'); };
+ACT.fMustRm = el => { form.must=(form.must||[]).filter(m=>m.id!==el.dataset.id); saveForm(); render(); };
 ACT.fSet = el => { const k=el.dataset.k; form[k] = el.dataset.v; saveForm(); render(); };
 ACT.fMeal = el => { const k=el.dataset.k; const i=form.meals.indexOf(k); if(i>=0) form.meals.splice(i,1); else form.meals.push(k); saveForm(); el.setAttribute('aria-pressed', i<0); };
 
@@ -545,6 +663,7 @@ function buildPrompt(f){
   lines.push(`喝的偏好：${p.drink.kinds.join('、')||'不限'}${p.drink.env.length?'；環境：'+p.drink.env.join('、'):''}`);
   lines.push(`玩的偏好：${p.play.kinds.join('、')||'不限'}；走路強度 ${p.play.walk||'普通'}${p.play.rain?'；請在 note 附一個雨天室內備案':''}`);
   if(f.budget) lines.push(`預算：每人約 NT$${f.budget}`);
+  if((f.must||[]).length) lines.push(`一定要排進去的店（請依營業時間放在合適的時段，路線照樣要順）：${f.must.map(m=>m.name+(m.area?'（'+shortArea(m.area)+'）':'')).join('、')}`);
   if(f.extra) lines.push(`補充：${f.extra}`);
   lines.push('');
   lines.push('規則：');
@@ -875,18 +994,25 @@ document.addEventListener('input', e=>{
   if(!cfg) return;
   const [tid, nid] = cfg.split('|'); const box = e.target;
   const p = parseShared(box.value.trim()); const t=document.getElementById(tid); const n=document.getElementById(nid);
-  if(p.name){ t.value = p.name; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
+  if(p.name){ t.value = p.name; t.dataset.area = p.area||''; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
   else if(p.url){
-    t.value=''; n.textContent='讀取店名中…';
+    t.value=''; t.dataset.area=''; n.textContent='讀取店名中…';
     const mine = box.value;
     (typeof api==='function' && API_URL ? api('resolveMap',{url:p.url}) : Promise.reject()).then(r=>{
       if(box.isConnected && box.value===mine){
-        if(r.name){ t.value=r.name; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
+        if(r.name){ t.value=r.name; t.dataset.area=r.area||''; n.textContent=''; t.dispatchEvent(new Event('change',{bubbles:true})); }
         else { n.textContent='這個連結讀不到店名，請在「店名」打一下。'; t.focus(); }
       }
     }).catch(()=>{ if(n.isConnected){ n.textContent='讀不到店名（可能沒網路），請在「店名」打一下。'; } });
   }
 });
+function splitAddrName(q){
+  q = String(q||'').trim();
+  const m = q.match(/^(\d{3,6})?\s*(.{0,12}?[縣市].{0,40}?(?:號|樓)(?:之\d+)?)\s*(.+)$/);
+  if(m) return {name:m[3].trim(), area:m[2].trim()};
+  const c = q.split(/[,，]/); if(c.length>1) return {name:c[0].trim(), area:c.slice(1).join(',').trim()};
+  return {name:q, area:''};
+}
 function parseShared(text){
   // Google 地圖分享出來通常是「店名\n地址\nhttps://maps.app.goo.gl/…」，也可能只有連結或只有店名
   const url = (text.match(/https?:\/\/\S+/)||[])[0] || '';
@@ -896,7 +1022,7 @@ function parseShared(text){
   if(name.includes(' · ')){ const parts=name.split(' · '); name=parts[0].trim(); area = area || parts.slice(1).join(' ').trim(); }
   if(/^[\d.]+\s*★|^★/.test(name)) name='';
   const q = url && (url.match(/[?&]q=([^&]+)/)||[])[1];
-  if(!name && q) name = decodeURIComponent(q.replace(/\+/g,' '));
+  if(!name && q){ const sp = splitAddrName(decodeURIComponent(q.replace(/\+/g,' '))); name = sp.name; area = area || sp.area; }
   const place = url && (url.match(/\/place\/([^/@?]+)/)||[])[1];
   if(!name && place) name = decodeURIComponent(place.replace(/\+/g,' '));
   return {name, area, url};
@@ -904,7 +1030,7 @@ function parseShared(text){
 ACT.swapManual = el => {
   const v = $('#swapName').value.trim(); const title = ($('#swapTitle').value||'').trim();
   if(!v && !title){ toast('先貼上 Google 地圖分享連結'); return; }
-  const p = parseShared(v); if(title) p.name = title;
+  const p = parseShared(v); if(title) p.name = title; p.area = $('#swapTitle').dataset.area || p.area;
   if(!p.name){ $('#swapNote').textContent='請在「店名」打一下這家店的名字'; $('#swapTitle').focus(); return; }
   const t=getTrip(curTripId); const s=t.data.days[+el.dataset.d].stops[+el.dataset.s];
   s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours, mapUrl:s.mapUrl});

@@ -207,37 +207,46 @@ API.ping = function () { return { pong: true }; };
 /* Google 地圖分享短網址 → 店名（瀏覽器跨網域讀不到轉址，由後端代讀） */
 API.resolveMap = function (b) {
   var url = String(b.url || '').trim();
-  var ok = /^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps)\//;
+  var ok = /^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+)/;
   if (!ok.test(url)) fail('只支援 Google 地圖的分享連結');
-  var cur = url, name = '';
-  for (var i = 0; i < 6 && !name; i++) {
-    // 有時會先轉到 consent.google.com?continue=…，裡面的網址是編碼過的
+  var cur = url, info = null;
+  for (var i = 0; i < 6 && !info; i++) {
     var plain = cur; try { plain = decodeURIComponent(cur); } catch (e) {}
-    name = mapName(plain);
-    if (name) break;
+    info = mapInfo(plain);
+    if (info) break;
     var res = UrlFetchApp.fetch(cur, { followRedirects: false, muteHttpExceptions: true });
     var h = res.getHeaders(); var loc = h.Location || h.location;
     if (!loc) {
       var html = res.getContentText().slice(0, 60000);
-      name = mapName(html, true);
-      if (!name) { var m2 = /https:\/\/www\.google\.[a-z.]+\/maps\/place\/[^"'\s\\]+/.exec(html); if (m2) name = mapName(m2[0]); }
+      info = mapInfoHtml(html);
       break;
     }
     cur = loc;
   }
-  return { name: name || '', url: cur };
+  info = info || { name: '', area: '' };
+  return { name: info.name, area: info.area, url: url };
 };
-function mapName(s, html) {
-  if (html) {
-    var m = /<meta[^>]+(?:property|itemprop|name)="(?:og:title|name)"[^>]+content="([^"]+)"/.exec(s) || /<title>([^<]+)<\/title>/.exec(s);
-    var t = m ? m[1].split(' · ')[0].replace(/ - Google (?:地圖|Maps)$/, '').trim() : '';
-    return /^(Google (地圖|Maps)|Before you continue.*)$/.test(t) ? '' : t;
-  }
+// 「307新竹縣芎林鄉…37號店名」→ 地址、店名分開
+function splitAddrName(q) {
+  q = String(q).replace(/\+/g, ' ').trim();
+  var m = /^(\d{3,6})?\s*(.{0,12}?[縣市].{0,40}?(?:號|樓)(?:之\d+)?)\s*(.+)$/.exec(q);
+  if (m && m[3].length >= 2) return { name: m[3].trim(), area: m[2].trim() };
+  if (q.indexOf(',') > 0) { var parts = q.split(','); return { name: parts[0].trim(), area: parts.slice(1).join(',').trim() }; }
+  return { name: q, area: '' };
+}
+function mapInfo(s) {
   var p = /\/maps\/place\/([^\/@?]+)/.exec(s);
-  if (p) return decodeURIComponent(p[1].replace(/\+/g, ' ')).split(',')[0].trim();
+  if (p) { var n = p[1]; try { n = decodeURIComponent(n); } catch (e) {} return splitAddrName(n); }
   var q = /[?&]q=([^&]+)/.exec(s);
-  if (q && !/^[\d.,\s-]+$/.test(decodeURIComponent(q[1]))) return decodeURIComponent(q[1].replace(/\+/g, ' ')).split(',')[0].trim();
-  return '';
+  if (q) { var v = q[1]; try { v = decodeURIComponent(v); } catch (e) {} if (!/^[\d.,\s-]+$/.test(v)) return splitAddrName(v); }
+  return null;
+}
+function mapInfoHtml(html) {
+  var m = /<meta[^>]+(?:property|itemprop|name)="(?:og:title|name)"[^>]+content="([^"]+)"/.exec(html) || /<title>([^<]+)<\/title>/.exec(html);
+  var t = m ? m[1].split(' · ')[0].replace(/ - Google (?:地圖|Maps)$/, '').trim() : '';
+  if (t && !/^(Google (地圖|Maps)|Before you continue.*)$/.test(t)) return { name: t, area: '' };
+  var m2 = /https:\/\/www\.google\.[a-z.]+\/maps\/place\/[^"'\s\\]+/.exec(html);
+  return m2 ? mapInfo(m2[0]) : null;
 }
 
 API.inviteInfo = function (b) {
