@@ -210,18 +210,29 @@ API.resolveMap = function (b) {
   var ok = /^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps)\//;
   if (!ok.test(url)) fail('只支援 Google 地圖的分享連結');
   var cur = url, name = '';
-  for (var i = 0; i < 5 && !name; i++) {
-    name = mapName(cur);
+  for (var i = 0; i < 6 && !name; i++) {
+    // 有時會先轉到 consent.google.com?continue=…，裡面的網址是編碼過的
+    var plain = cur; try { plain = decodeURIComponent(cur); } catch (e) {}
+    name = mapName(plain);
     if (name) break;
     var res = UrlFetchApp.fetch(cur, { followRedirects: false, muteHttpExceptions: true });
     var h = res.getHeaders(); var loc = h.Location || h.location;
-    if (!loc) { name = mapName(res.getContentText().slice(0, 20000), true); break; }
+    if (!loc) {
+      var html = res.getContentText().slice(0, 60000);
+      name = mapName(html, true);
+      if (!name) { var m2 = /https:\/\/www\.google\.[a-z.]+\/maps\/place\/[^"'\s\\]+/.exec(html); if (m2) name = mapName(m2[0]); }
+      break;
+    }
     cur = loc;
   }
   return { name: name || '', url: cur };
 };
 function mapName(s, html) {
-  if (html) { var m = /<meta[^>]+property="og:title"[^>]+content="([^"]+)"/.exec(s); return m ? m[1].split(' · ')[0].trim() : ''; }
+  if (html) {
+    var m = /<meta[^>]+(?:property|itemprop|name)="(?:og:title|name)"[^>]+content="([^"]+)"/.exec(s) || /<title>([^<]+)<\/title>/.exec(s);
+    var t = m ? m[1].split(' · ')[0].replace(/ - Google (?:地圖|Maps)$/, '').trim() : '';
+    return /^(Google (地圖|Maps)|Before you continue.*)$/.test(t) ? '' : t;
+  }
   var p = /\/maps\/place\/([^\/@?]+)/.exec(s);
   if (p) return decodeURIComponent(p[1].replace(/\+/g, ' ')).split(',')[0].trim();
   var q = /[?&]q=([^&]+)/.exec(s);
