@@ -756,11 +756,17 @@ ACT.swap = el => {
     <b style="font-size:19px">換掉「${esc(s.name)}」</b>
     <h2 class="sec" style="margin:0">備選清單${alts.length>1?'（評分排序）':''}</h2>
     ${list}
-    <a class="btn2" href="${esc(gm.search(dest(s)+' 附近 '+q))}" target="_blank" rel="noopener">在這站附近用 Google 地圖找更多</a>
-    <label class="field"><span class="lbl" style="font-size:15px">自己找到了？貼上來換掉</span>
-      <textarea id="swapName" class="inp" style="min-height:84px;font-family:inherit;font-size:15px" placeholder="打店名就好；或在 Google 地圖按「分享」→「複製連結」貼過來，導航會更準"></textarea></label>
-    <div class="hint" style="margin-top:-6px">換掉之後，這一站的「導航」「看評價」「找停車」都會改成新的地點。</div>
-    <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">用這個換掉</button>
+    <h2 class="sec" style="margin:8px 0 0">自己在 Google 地圖找</h2>
+    <div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.6">
+      <span><b>1</b>　按下面按鈕，在 Google 地圖找一家喜歡的</span>
+      <span><b>2</b>　點進那家店，按「分享」→「複製連結」</span>
+      <span><b>3</b>　回到這裡，貼在下面的框</span>
+    </div>
+    <a class="btn2" href="${esc(gm.search(dest(s)+' 附近 '+q))}" target="_blank" rel="noopener">在這站附近用 Google 地圖找</a>
+    <label class="field"><span class="lbl" style="font-size:15px">貼上 Google 地圖分享連結</span>
+      <textarea id="swapName" class="inp" style="min-height:84px;font-family:inherit;font-size:15px" placeholder="長按貼上，例如：阿婆粄條 https://maps.app.goo.gl/…"></textarea></label>
+    <div class="hint" style="margin-top:-6px">換掉之後，這一站的「導航」「看評價」「找停車」都會改成這家。沒有連結的話，直接打店名也可以。</div>
+    <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">換成這家</button>
     <div class="hint">星等與營業時間是 AI 查的參考，換之前按「看評價」確認。</div>
     <button class="link" data-act="closeSheet">不換了</button>
   </div>`);
@@ -786,7 +792,7 @@ function parseShared(text){
   return {name: name || (url? '地圖上選的地點':''), area, url};
 }
 ACT.swapManual = el => {
-  const v = $('#swapName').value.trim(); if(!v){ toast('先打店名或貼上連結'); return; }
+  const v = $('#swapName').value.trim(); if(!v){ toast('先貼上 Google 地圖分享連結'); return; }
   const p = parseShared(v);
   const t=getTrip(curTripId); const s=t.data.days[+el.dataset.d].stops[+el.dataset.s];
   s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours, mapUrl:s.mapUrl});
