@@ -765,6 +765,9 @@ ACT.swap = el => {
     <a class="btn2" href="${esc(gm.search(dest(s)+' 附近 '+q))}" target="_blank" rel="noopener">在這站附近用 Google 地圖找</a>
     <label class="field"><span class="lbl" style="font-size:15px">貼上 Google 地圖分享連結</span>
       <textarea id="swapName" class="inp" style="min-height:84px;font-family:inherit;font-size:15px" placeholder="長按貼上，例如：阿婆粄條 https://maps.app.goo.gl/…"></textarea></label>
+    <label class="field"><span class="lbl" style="font-size:15px">店名</span>
+      <input id="swapTitle" class="inp" placeholder="貼上連結後會自動帶入；沒帶到就自己打"></label>
+    <div id="swapNote" class="hint" style="margin-top:-6px;color:var(--amber2)"></div>
     <div class="hint" style="margin-top:-6px">換掉之後，這一站的「導航」「看評價」「找停車」都會改成這家。沒有連結的話，直接打店名也可以。</div>
     <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">換成這家</button>
     <div class="hint">星等與營業時間是 AI 查的參考，換之前按「看評價」確認。</div>
@@ -779,21 +782,31 @@ ACT.doSwap = el => {
   s.alternatives.splice(ai,1,old);
   putTrip(t); closeSheet(); render(); toast('換成「'+a.name+'」');
 };
+document.addEventListener('input', e=>{
+  if(e.target.id!=='swapName') return;
+  const p = parseShared(e.target.value.trim()); const t=$('#swapTitle'); const n=$('#swapNote');
+  if(p.name){ t.value = p.name; n.textContent=''; }
+  else if(p.url){ t.value=''; n.textContent='這個連結看不到店名，請在上面「店名」打一下，行程才會顯示正確名字。'; t.focus(); }
+});
 function parseShared(text){
   // Google 地圖分享出來通常是「店名\n地址\nhttps://maps.app.goo.gl/…」，也可能只有連結或只有店名
   const url = (text.match(/https?:\/\/\S+/)||[])[0] || '';
   const lines = text.replace(url,'').split(/\n/).map(x=>x.trim()).filter(Boolean);
   let name = lines[0] || '';
-  const area = lines[1] && !/^https?:/.test(lines[1]) ? lines[1] : '';
+  let area = lines[1] && !/^https?:/.test(lines[1]) ? lines[1] : '';
+  if(name.includes(' · ')){ const parts=name.split(' · '); name=parts[0].trim(); area = area || parts.slice(1).join(' ').trim(); }
+  if(/^[\d.]+\s*★|^★/.test(name)) name='';
   const q = url && (url.match(/[?&]q=([^&]+)/)||[])[1];
   if(!name && q) name = decodeURIComponent(q.replace(/\+/g,' '));
   const place = url && (url.match(/\/place\/([^/@?]+)/)||[])[1];
   if(!name && place) name = decodeURIComponent(place.replace(/\+/g,' '));
-  return {name: name || (url? '地圖上選的地點':''), area, url};
+  return {name, area, url};
 }
 ACT.swapManual = el => {
-  const v = $('#swapName').value.trim(); if(!v){ toast('先貼上 Google 地圖分享連結'); return; }
-  const p = parseShared(v);
+  const v = $('#swapName').value.trim(); const title = ($('#swapTitle').value||'').trim();
+  if(!v && !title){ toast('先貼上 Google 地圖分享連結'); return; }
+  const p = parseShared(v); if(title) p.name = title;
+  if(!p.name){ $('#swapNote').textContent='請在「店名」打一下這家店的名字'; $('#swapTitle').focus(); return; }
   const t=getTrip(curTripId); const s=t.data.days[+el.dataset.d].stops[+el.dataset.s];
   s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours, mapUrl:s.mapUrl});
   Object.assign(s,{name:p.name, area: p.area || s.area, mapUrl: p.url || '', rating_hint:null, note:'自己換的', open_status:'unknown', hours:'', parking: t.mode==='大眾運輸'?null:'出發前按「找停車」看附近停車場'});
