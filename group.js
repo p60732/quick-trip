@@ -534,7 +534,7 @@ putTrip = function (t) {
   if (t.id === 'gtoday') { LS.set('gtoday', t); return; }
   if (String(t.id).startsWith('g:')) {
     const tid = t.id.slice(2);
-    api('saveItinerary', { tripId: tid, data: t.data, baseVer: t._ver, note: '換了一家' })
+    api('saveItinerary', { tripId: tid, data: t.data, baseVer: t._ver, note: t._note || '換了一家' })
       .then(() => loadTrip(tid, true)).then(() => { render(); toast('已存成新的一版'); })
       .catch(e => { toast(e.message); quiet(loadTrip(tid, true).then(render)); });
     const d = GC[tid]; d.itinerary.data = t.data;  // 先顯示

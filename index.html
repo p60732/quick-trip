@@ -208,7 +208,10 @@ function render(){
 }
 document.addEventListener('click', e=>{
   const g = e.target.closest('[data-go]'); if(g){ e.preventDefault(); go(g.dataset.go); return; }
-  const a = e.target.closest('[data-act]'); if(a){ e.preventDefault(); const fn = ACT[a.dataset.act]; if(fn){ const r = fn(a, e); if(r && r.catch) r.catch(()=>{}); } }
+  const a = e.target.closest('[data-act]');
+  // 背景層（點外面關閉）只在點到它本身時才處理，裡面的連結要能正常打開
+  if(a && a.dataset.act==='bgClose' && e.target!==a) return;
+  if(a){ e.preventDefault(); const fn = ACT[a.dataset.act]; if(fn){ const r = fn(a, e); if(r && r.catch) r.catch(()=>{}); } }
 });
 const ACT = {};
 
@@ -397,7 +400,7 @@ routes.form = () => {
       </div>
     </details>
   </div>
-  <div class="foot"><button class="btn blue" data-act="makePrompt">產生提示詞並複製</button></div>`;
+  <div class="foot"><button class="btn blue" data-act="makePrompt">產生提示詞並複製</button><button class="link" data-act="skipPrompt">已經問過 AI 了？直接貼上回覆</button></div>`;
 };
 function steps(n){ const L=['填地點','問 AI','貼回']; return `<div class="steps">${L.map((t,i)=>`<span class="${i+1===n?'on':(i+1<n?'done':'')}">${i+1} ${t}${i+1<n?' ✓':''}</span>`).join('<span style="padding:0;color:var(--faint)">›</span>')}</div>`; }
 document.addEventListener('input', e=>{
@@ -488,6 +491,7 @@ function buildPrompt(f){
   lines.push(SCHEMA);
   return lines.join('\n');
 }
+ACT.skipPrompt = () => { const p=$('#fPlace'); if(p){ form.place=p.value.trim(); saveForm(); } go('paste/skip'); };
 ACT.makePrompt = async () => {
   form.place = ($('#fPlace').value||'').trim(); saveForm();
   if(!form.place){ toast('先填想去哪裡'); $('#fPlace').focus(); return; }
@@ -503,7 +507,8 @@ routes.paste = (copied) => {
   const val = LS.get('paste','');
   const pr = LS.get('lastPrompt','');
   return header('直接出發','form') + steps(3) + `<div class="pad stack">
-    <div class="note ${copied==='1'?'ok':'amber'}">${copied==='1'?'<b>提示詞已複製</b><br>':'<b>沒有自動複製成功</b>，按下面「再複製一次」。<br>'}打開你的 AI 貼上送出，再把整段回覆複製回來。</div>
+    ${copied==='skip'?`<div class="note blue"><b>直接貼上 AI 的回覆</b><br>之前問過 AI 的話，把整段回覆貼在下面就好。還沒問的話，按「再複製一次」拿提示詞。</div>`:
+    `<div class="note ${copied==='1'?'ok':'amber'}">${copied==='1'?'<b>提示詞已複製</b><br>':'<b>沒有自動複製成功</b>，按下面「再複製一次」。<br>'}打開你的 AI 貼上送出，再把整段回覆複製回來。</div>`}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <a class="btn2" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
       <a class="btn2" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a>
@@ -514,12 +519,16 @@ routes.paste = (copied) => {
     <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><label class="lbl" for="pasteBox">貼上 AI 的回覆</label><button class="hbtn" data-act="clearPaste">清空</button></div>
       <textarea id="pasteBox" class="inp" placeholder="長按貼上整段回覆">${esc(val)}</textarea>
       <span class="hint">格式不對時，會說是第幾站有問題</span></div>
-    ${pr?'':'<div class="note amber">找不到剛剛的提示詞，請回上一步重新產生。</div>'}
+    ${pr||copied==='skip'?'':'<div class="note amber">找不到剛剛的提示詞，請回上一步重新產生。</div>'}
   </div>
   <div class="foot"><button class="btn blue" data-act="parsePaste">排成行程</button></div>`;
 };
 document.addEventListener('input', e=>{ if(e.target.id==='pasteBox') LS.set('paste', e.target.value); });
-ACT.recopy = async () => { const ok = await copyText(LS.get('lastPrompt','')); toast(ok?'已複製':'複製失敗，請按「看提示詞」手動複製'); };
+ACT.recopy = async () => {
+  let pr = LS.get('lastPrompt','');
+  if(!pr && form.place){ pr = buildPrompt(form); LS.set('lastPrompt', pr); }
+  if(!pr){ toast('先回上一步填想去哪裡'); return; }
+  const ok = await copyText(pr); toast(ok?'已複製':'複製失敗，請按「看提示詞」手動複製'); };
 ACT.showPrompt = () => openSheet(`<div class="pad stack"><b style="font-size:18px">提示詞</b><textarea class="inp" readonly style="min-height:50vh">${esc(LS.get('lastPrompt',''))}</textarea><button class="btn" data-act="recopy">複製</button><button class="link" data-act="closeSheet">關閉</button></div>`);
 ACT.clearPaste = () => { LS.set('paste',''); const b=$('#pasteBox'); if(b){ b.value=''; b.focus(); } };
 
@@ -649,8 +658,8 @@ function stopHTML(t, di, si, opts={}){
       ${statusLine(s, date)}
       <div class="acts">
         <a class="act" href="${esc(gm.dir(dest(s), mode))}" target="_blank" rel="noopener">導航</a>
-        <a class="act" href="${esc(gm.search(dest(s)))}" target="_blank" rel="noopener">看評價</a>
-        ${opts.noswap?'':`<button class="act" data-act="swap" data-d="${di}" data-s="${si}">換一${s.type==='玩'?'個':'家'}</button>`}
+        <a class="act" href="${esc(s.mapUrl || gm.search(dest(s)))}" target="_blank" rel="noopener">看評價</a>
+        ${opts.noswap?'':`<button class="act" data-act="swap" data-d="${di}" data-s="${si}">換一${s.type==='玩'?'個':'家'}</button><button class="act" style="color:var(--mute);border-color:#e0dcd4" data-act="rmStop" data-d="${di}" data-s="${si}">移除</button>`}
       </div>
       ${park}
     </article></div>`;
@@ -670,7 +679,7 @@ routes.trip = (id) => {
       <button class="btn2" data-go="edit/${enc(t.id)}">編輯</button>
       <button class="btn2" data-go="share/${enc(t.id)}">分享／匯出</button>
     </div>
-    ${t.saved?'':`<div class="note amber" style="display:flex;align-items:center;gap:8px"><span style="flex:1">還沒存檔，只是草稿。${isIOS&&!isStandalone()?'加到主畫面後才不會 7 天被清掉。':''}</span><button class="hbtn" data-act="saveTrip" style="color:var(--amber)">存檔 ›</button></div>`}
+    ${t.saved?'':`<div class="note amber" style="display:flex;align-items:center;gap:8px"><span style="flex:1">還沒存檔，只是草稿。${isIOS&&!isStandalone()?'加到主畫面後才不會 7 天被清掉。':''}</span><button class="hbtn" data-act="discardDraft" style="color:var(--mute);font-weight:400">不要了</button><button class="hbtn" data-act="saveTrip" style="color:var(--amber)">存檔 ›</button></div>`}
     <div class="note ${st.closed?'terra':(st.unk?'amber':'ok')}">${esc(mdw(d.date))}${multi?' 起':''} · ${st.open} 站確認有營業${st.unk?'，'+st.unk+' 站不確定':''}${st.closed?'，<b>'+st.closed+' 站公休，建議換一家</b>':''}<br><span style="font-size:13px">營業時間由 AI 查詢，不確定的出發前點「看評價」確認</span></div>
   </div>
   ${multi?`<div class="tabs" role="tablist" style="margin-top:12px">${t.data.days.map((dd,i)=>`<button role="tab" aria-selected="${i===tripDay}" data-act="day" data-i="${i}">第 ${i+1} 天 · ${esc(mdw(dd.date))}</button>`).join('')}</div>`:'<div style="height:12px"></div>'}
@@ -685,6 +694,29 @@ ACT.saveTrip = () => {
   const t = getTrip('draft'); if(!t) return;
   t.id = uid(); t.saved = true; saveTrip(t); LS.del('draftTrip'); LS.del('paste');
   toast('存到「我的行程」了'); go('trip/'+t.id);
+};
+ACT.discardDraft = () => openSheet(`<div class="pad stack"><b style="font-size:18px">不要這份草稿？</b><div class="note amber">這份行程還沒存檔，丟掉就找不回來。貼上的 AI 回覆也會清掉。</div><button class="btn terra" data-act="discardDraft2">丟掉草稿</button><button class="link" data-act="closeSheet">留著</button></div>`);
+ACT.discardDraft2 = () => { LS.del('draftTrip'); LS.del('paste'); closeSheet(); toast('草稿丟掉了'); go('form'); };
+ACT.rmStop = el => {
+  const t=getTrip(curTripId); const di=+el.dataset.d, si=+el.dataset.s; const s=t.data.days[di].stops[si];
+  openSheet(`<div class="pad stack"><b style="font-size:18px">移除「${esc(s.name)}」？</b><div class="hint">只拿掉這一站，其他站的時間不變。想整段往前挪，到「編輯」用「後面一起早 30 分」。</div>
+    <button class="btn terra" data-act="rmStop2" data-d="${di}" data-s="${si}">移除這一站</button><button class="link" data-act="closeSheet">不要</button></div>`);
+};
+ACT.rmStop2 = el => {
+  const t=getTrip(curTripId); const di=+el.dataset.d, si=+el.dataset.s; const s=t.data.days[di].stops.splice(si,1)[0];
+  lastRemoved = {id:curTripId, di, si, stop:s};
+  t._note='移除「'+s.name+'」'; putTrip(t); closeSheet(); render(); undoToast('已移除「'+s.name+'」');
+};
+let lastRemoved = null;
+function undoToast(msg){
+  const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status');
+  t.innerHTML = esc(msg)+' <button data-act="undoRemove" style="margin-left:10px;border:none;background:none;color:#cfe3dc;font-weight:700;min-height:32px">復原</button>';
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 5000);
+}
+ACT.undoRemove = el => {
+  if(!lastRemoved) return; const r=lastRemoved; lastRemoved=null;
+  const t=getTrip(r.id); if(!t) return; t.data.days[r.di].stops.splice(r.si,0,r.stop);
+  putTrip(t); el.closest('.toast').remove(); render(); toast('復原了');
 };
 ACT.upgrade = () => openSheet(`<div class="pad stack"><b style="font-size:18px">升級成團</b><div class="note blue">揪團（多人一起排、投票、分工、分帳）正在做。做好之後，這份行程可以直接變成團的第一版，不用重排。</div><button class="btn" data-act="closeSheet">知道了</button></div>`);
 ACT.tripMore = el => {
@@ -725,8 +757,10 @@ ACT.swap = el => {
     <h2 class="sec" style="margin:0">備選清單${alts.length>1?'（評分排序）':''}</h2>
     ${list}
     <a class="btn2" href="${esc(gm.search(dest(s)+' 附近 '+q))}" target="_blank" rel="noopener">在這站附近用 Google 地圖找更多</a>
-    <label class="field"><span class="lbl" style="font-size:15px">自己找到了？直接打店名換掉</span><input id="swapName" class="inp" placeholder="店名"></label>
-    <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">用這個名字換掉</button>
+    <label class="field"><span class="lbl" style="font-size:15px">自己找到了？貼上來換掉</span>
+      <textarea id="swapName" class="inp" style="min-height:84px;font-family:inherit;font-size:15px" placeholder="打店名就好；或在 Google 地圖按「分享」→「複製連結」貼過來，導航會更準"></textarea></label>
+    <div class="hint" style="margin-top:-6px">換掉之後，這一站的「導航」「看評價」「找停車」都會改成新的地點。</div>
+    <button class="btn2" data-act="swapManual" data-d="${di}" data-s="${si}">用這個換掉</button>
     <div class="hint">星等與營業時間是 AI 查的參考，換之前按「看評價」確認。</div>
     <button class="link" data-act="closeSheet">不換了</button>
   </div>`);
@@ -734,16 +768,29 @@ ACT.swap = el => {
 ACT.doSwap = el => {
   const t=getTrip(curTripId); const di=+el.dataset.d, si=+el.dataset.s, ai=+el.dataset.a;
   const s=t.data.days[di].stops[si]; const a=s.alternatives[ai];
-  const old = {name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours};
-  Object.assign(s, {name:a.name, area:a.area||s.area, rating_hint:a.rating_hint||null, price:a.price||s.price, note:a.note||'', parking:a.parking||s.parking, open_status:a.open_status||'unknown', hours:a.hours||''});
+  const old = {name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours, mapUrl:s.mapUrl};
+  Object.assign(s, {mapUrl:a.mapUrl||'', name:a.name, area:a.area||s.area, rating_hint:a.rating_hint||null, price:a.price||s.price, note:a.note||'', parking:a.parking||s.parking, open_status:a.open_status||'unknown', hours:a.hours||''});
   s.alternatives.splice(ai,1,old);
   putTrip(t); closeSheet(); render(); toast('換成「'+a.name+'」');
 };
+function parseShared(text){
+  // Google 地圖分享出來通常是「店名\n地址\nhttps://maps.app.goo.gl/…」，也可能只有連結或只有店名
+  const url = (text.match(/https?:\/\/\S+/)||[])[0] || '';
+  const lines = text.replace(url,'').split(/\n/).map(x=>x.trim()).filter(Boolean);
+  let name = lines[0] || '';
+  const area = lines[1] && !/^https?:/.test(lines[1]) ? lines[1] : '';
+  const q = url && (url.match(/[?&]q=([^&]+)/)||[])[1];
+  if(!name && q) name = decodeURIComponent(q.replace(/\+/g,' '));
+  const place = url && (url.match(/\/place\/([^/@?]+)/)||[])[1];
+  if(!name && place) name = decodeURIComponent(place.replace(/\+/g,' '));
+  return {name: name || (url? '地圖上選的地點':''), area, url};
+}
 ACT.swapManual = el => {
-  const v = $('#swapName').value.trim(); if(!v){ toast('先打店名'); return; }
+  const v = $('#swapName').value.trim(); if(!v){ toast('先打店名或貼上連結'); return; }
+  const p = parseShared(v);
   const t=getTrip(curTripId); const s=t.data.days[+el.dataset.d].stops[+el.dataset.s];
-  s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours});
-  Object.assign(s,{name:v, rating_hint:null, note:'自己換的', open_status:'unknown', hours:'', parking: t.mode==='大眾運輸'?null:'出發前自己找停車'});
+  s.alternatives = s.alternatives||[]; s.alternatives.unshift({name:s.name, area:s.area, rating_hint:s.rating_hint, price:s.price, note:s.note, parking:s.parking, open_status:s.open_status, hours:s.hours, mapUrl:s.mapUrl});
+  Object.assign(s,{name:p.name, area: p.area || s.area, mapUrl: p.url || '', rating_hint:null, note:'自己換的', open_status:'unknown', hours:'', parking: t.mode==='大眾運輸'?null:'出發前按「找停車」看附近停車場'});
   putTrip(t); closeSheet(); render();
 };
 
