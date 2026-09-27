@@ -531,7 +531,7 @@ ACT.prefSingle = el => { const cur=get(prefDraft,el.dataset.p); set(prefDraft,el
 ACT.prefSave = () => {
   document.querySelectorAll('[data-pref]').forEach(c=>set(prefDraft,c.dataset.pref,c.checked));
   prefDraft.eat.avoid = $('#avoid').value.trim();
-  LS.set('prefs', prefDraft); prefDraft=null; toast('偏好存好了'); go(prefBack());
+  LS.set('prefs', Object.assign(prefDraft, {home: homeAddr()})); prefDraft=null; toast('偏好存好了'); go(prefBack());
 };
 
 /* ================= MEAL TEMPLATE ================= */
@@ -574,8 +574,17 @@ routes.form = () => {
   const ms = meals();
   const dateBtns = [[today,'今天 '+mdw(today)],[tmr,'明天 '+mdw(tmr)]];
   const custom = form.date!==today && form.date!==tmr;
+  const home = homeAddr();
   return header('直接出發','home') + steps(1) + `<div class="pad stack" style="gap:18px">
     <div class="field"><label class="lbl" for="fPlace">想去哪裡</label><input id="fPlace" class="inp" placeholder="例：內灣老街" value="${esc(form.place)}" data-f="place"></div>
+    <div class="field"><label class="lbl" for="fStart">從哪裡出發</label>
+      <input id="fStart" class="inp" placeholder="例：竹東、新竹火車站" value="${esc(form.start)}" data-f="start">
+      <div class="chips" style="gap:6px">
+        <button class="chip" style="min-height:40px" data-act="fStartHome" aria-pressed="${!!home && form.start===home}">🏠 從家${home?'':'（先設定）'}</button>
+        <button class="chip" style="min-height:40px" data-act="fStartGps">📍 目前位置</button>
+        ${home?`<button class="hbtn" data-act="homeEdit">改家的地址</button>`:''}
+      </div>
+      <span class="hint" id="fStartNote" role="status"></span></div>
     <div class="field"><span class="lbl">哪天去</span>
       <div class="seg" style="grid-template-columns:1fr 1fr 1fr">${dateBtns.map(([v,t])=>`<button aria-pressed="${form.date===v}" data-act="fSet" data-k="date" data-v="${v}">${t}</button>`).join('')}
       <label style="position:relative"><button aria-pressed="${custom}" style="width:100%" tabindex="-1">${custom? mdw(form.date):'選日期'}</button><input type="date" data-f="date" value="${form.date}" min="${today}" aria-label="選日期" style="position:absolute;inset:0;opacity:0;width:100%"></label></div>
@@ -589,10 +598,9 @@ routes.form = () => {
       <div class="chips">${prefSummary().map(s=>`<span class="chip" style="border-style:dashed">${esc(s)}</span>`).join('')}</div></div>
     <div class="field"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">要排哪幾餐</span><button class="hbtn" data-go="meals">用餐模板</button></div>
       <div class="chips">${ms.map(m=>`<button class="chip terra" aria-pressed="${form.meals.includes(m.k)}" data-act="fMeal" data-k="${m.k}">${m.label} ${m.time}</button>`).join('')}</div></div>
-    <details class="card" style="padding:4px 16px" ${form.start||form.budget||form.extra||form.kids?'open':''}>
-      <summary style="min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer">更多選項：出發點、人數、預算</summary>
+    <details class="card" style="padding:4px 16px" ${form.budget||form.extra||form.kids?'open':''}>
+      <summary style="min-height:48px;display:flex;align-items:center;font-weight:700;cursor:pointer">更多選項：人數、預算、補充</summary>
       <div class="stack" style="padding:4px 0 16px">
-        <div class="field"><label class="lbl" for="fStart">從哪裡出發</label><input id="fStart" class="inp" placeholder="例：竹東、新竹火車站" value="${esc(form.start)}" data-f="start"></div>
         <div class="field"><span class="lbl">幾個人</span><div class="seg" style="grid-template-columns:repeat(5,1fr)">${[1,2,3,4,'5+'].map(v=>`<button aria-pressed="${String(form.people)===String(v)}" data-act="fSet" data-k="people" data-v="${v}">${v}</button>`).join('')}</div></div>
         <label class="switch"><input type="checkbox" data-fc="kids" ${form.kids?'checked':''}>有帶小孩</label>
         <div class="field"><label class="lbl" for="fBudget">每人預算（選填）</label><input id="fBudget" class="inp" inputmode="numeric" placeholder="例：1500" value="${esc(form.budget)}" data-f="budget"></div>
@@ -607,6 +615,45 @@ document.addEventListener('input', e=>{
   const f = e.target.dataset.f; if(f){ form[f] = e.target.value; saveForm(); if(f==='date') render(); }
 });
 document.addEventListener('change', e=>{ const f=e.target.dataset.fc; if(f){ form[f]=e.target.checked; saveForm(); } });
+/* 出發點：存一個「家」（跟著偏好一起存雲端），或用 GPS 目前位置 */
+function homeAddr(){ return (LS.get('prefs',{})||{}).home || ''; }
+function setHome(v){ const p = LS.get('prefs',{})||{}; p.home = v; LS.set('prefs', p); }
+function setStart(v){ form.start = v; saveForm(); const i=$('#fStart'); if(i) i.value = v; }
+ACT.fStartHome = () => { const h=homeAddr(); if(!h){ ACT.homeEdit(); return; } setStart(h); render(); };
+ACT.homeEdit = () => {
+  openSheet(`<div class="stack" style="padding:0 20px 20px"><h2 style="margin:4px 0">家的地址</h2>
+    <div class="sub">存起來之後，排行程按「從家」就好。登入的話會跟著帳號存雲端。</div>
+    <input id="homeIn" class="inp" placeholder="例：竹東鎮龍鳳路" value="${esc(homeAddr())}">
+    <span class="hint" id="homeNote" role="status"></span>
+    <button class="btn2" data-act="homeGps">📍 我現在在家，用目前位置</button>
+    <button class="btn" data-act="homeSave">存起來</button>
+    ${homeAddr()?'<button class="link" style="color:var(--bad)" data-act="homeClear">不存家的地址</button>':''}
+    <button class="link" data-act="closeSheet">取消</button></div>`);
+  setTimeout(()=>{ const i=$('#homeIn'); if(i && !i.value) i.focus(); }, 60);
+};
+ACT.homeSave = () => { const v=($('#homeIn').value||'').trim(); if(!v){ toast('先打地址，或按「用目前位置」'); return; } setHome(v); closeSheet(); if((location.hash.slice(1)||'').startsWith('form')) setStart(v); toast('家的地址存好了'); render(); };
+ACT.homeClear = () => { setHome(''); closeSheet(); toast('刪掉了'); render(); };
+ACT.homeGps = () => getHere($('#homeNote'), v => { const i=$('#homeIn'); if(i) i.value = v.label; });
+ACT.fStartGps = () => getHere($('#fStartNote'), v => setStart((v.label==='目前位置'? '目前位置' : v.label) + '（GPS ' + v.lat.toFixed(5) + ',' + v.lng.toFixed(5) + '）'));
+// 拿 GPS → 先填座標，再用 OpenStreetMap 換成「鄉鎮＋路名」
+function getHere(noteEl, done){
+  const note = t => { if(noteEl && noteEl.isConnected) noteEl.textContent = t; };
+  if(!navigator.geolocation){ note('這支手機拿不到位置，請直接打地名'); return; }
+  note('定位中…');
+  navigator.geolocation.getCurrentPosition(async p => {
+    const lat=p.coords.latitude, lng=p.coords.longitude;
+    let label = '';
+    try{
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=17&accept-language=zh-TW`);
+      const a = (await r.json()).address || {};
+      const town = a.town || a.suburb || a.city_district || a.village || a.city || '';
+      label = (town + (a.road || a.neighbourhood || '')).trim();
+      if(label) label += '附近';
+    }catch(e){}
+    if(!label) label = '目前位置';
+    note(''); done({lat, lng, label});
+  }, () => note('沒拿到位置：iPhone 要到 設定 › 隱私權 › 定位服務 › Safari 網站 允許，或直接打地名'), {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
 ACT.fPickPocket = () => { const p=$('#fPlace'); if(p){ form.place=p.value.trim(); saveForm(); } pkUI={sel:new Set((form.must||[]).map(m=>m.id)), filter:'全部', purpose:'form'}; go('pocket/pick'); };
 ACT.fMustRm = el => { form.must=(form.must||[]).filter(m=>m.id!==el.dataset.id); saveForm(); render(); };
 ACT.fSet = el => { const k=el.dataset.k; form[k] = el.dataset.v; saveForm(); render(); };
