@@ -604,13 +604,18 @@ routes.form = () => {
         <div class="field"><span class="lbl">幾個人</span><div class="seg" style="grid-template-columns:repeat(5,1fr)">${[1,2,3,4,'5+'].map(v=>`<button aria-pressed="${String(form.people)===String(v)}" data-act="fSet" data-k="people" data-v="${v}">${v}</button>`).join('')}</div></div>
         <label class="switch"><input type="checkbox" data-fc="kids" ${form.kids?'checked':''}>有帶小孩</label>
         <div class="field"><label class="lbl" for="fBudget">每人預算（選填）</label><input id="fBudget" class="inp" inputmode="numeric" placeholder="例：1500" value="${esc(form.budget)}" data-f="budget"></div>
-        <div class="field"><label class="lbl" for="fExtra">想補充給 AI 的話（選填）</label><input id="fExtra" class="inp" placeholder="例：15:00 前要回程" value="${esc(form.extra)}" data-f="extra"></div>
+        <div class="field"><label class="lbl" for="fExtra">想補充給 AI 的話（選填）</label><textarea id="fExtra" class="inp autogrow" rows="1" placeholder="例：15:00 前要回程" data-f="extra" style="min-height:52px;resize:none;overflow:hidden;font-family:inherit;font-size:inherit;line-height:1.5">${esc(form.extra)}</textarea></div>
       </div>
     </details>
   </div>
   <div class="foot"><button class="btn blue" data-act="makePrompt">產生提示詞並複製</button><button class="link" data-act="skipPrompt">已經問過 AI 了？直接貼上回覆</button></div>`;
 };
 function steps(n){ const L=['填地點','問 AI','貼回']; return `<div class="steps">${L.map((t,i)=>`<span class="${i+1===n?'on':(i+1<n?'done':'')}">${i+1} ${t}${i+1<n?' ✓':''}</span>`).join('<span style="padding:0;color:var(--faint)">›</span>')}</div>`; }
+// 會依字數長高的輸入框
+function growBox(el){ el.style.height='auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
+document.addEventListener('input', e=>{ if(e.target.classList && e.target.classList.contains('autogrow')) growBox(e.target); });
+document.addEventListener('toggle', e=>{ if(e.target.tagName==='DETAILS') e.target.querySelectorAll('.autogrow').forEach(growBox); }, true);
+routes.form_after = () => document.querySelectorAll('.autogrow').forEach(growBox);
 document.addEventListener('input', e=>{
   const f = e.target.dataset.f; if(f){ form[f] = e.target.value; saveForm(); if(f==='date') render(); }
 });
