@@ -272,6 +272,7 @@ routes.nearby = () => {
     <h2 class="sec">想吃什麼？</h2>
     <div class="hint" style="margin-top:-6px">點一下選類別，再按下面的按鈕開 Google 地圖看評價</div>
     <div class="chips">${catBtns}</div>
+    <button class="btn2" data-act="nearDraw" style="border-style:dashed">🎲 選不下去？幫我抽一家</button>
     <a class="btn terra" ${has?`href="${esc(nearLink(near.cat))}" target="_blank" rel="noopener"`:''} style="${has?'':'background:#c9c5bc;pointer-events:none'}">在 Google 地圖看附近「${esc(near.cat)}」</a>
     <div class="hint">星等、評論數、營業中，都在 Google 地圖裡看</div>
     ${pocketBox()}
@@ -284,6 +285,42 @@ routes.nearby = () => {
     <div style="height:24px"></div>
   </div>`;
 };
+/* 🎲 幫我抽：先從口袋名單抽（離現在地點同一區的優先），沒有就抽一個類別 */
+let drawLast = '';
+function drawCats(){
+  const h = new Date().getHours();
+  return NEAR_CATS.filter(c => !(c==='早午餐' && h>=15) && !(c==='宵夜' && h<20 && h>=5) && !(c==='親子餐廳' && h>=21));
+}
+function pick(list){ const l = list.length>1 ? list.filter(x=>(x.id||x)!==drawLast) : list; const x = l[Math.floor(Math.random()*l.length)]; drawLast = x.id||x; return x; }
+ACT.nearDraw = (el) => {
+  const mode = el && el.dataset.m;
+  const areaName = near.manual || near.area || '';
+  const eats = pocket().filter(p=>p.type==='吃'||p.type==='喝');
+  const here = areaName ? eats.filter(p=>(p.area||'').includes(areaName) || areaName.includes(shortArea(p.area)||'@')) : [];
+  const has = near.state==='ok' || !!near.manual;
+  if(mode!=='cat' && eats.length){
+    const pool = here.length ? here : eats; const p = pick(pool);
+    openSheet(`<div class="stack" style="padding:0 20px 20px;text-align:center">
+      <div class="sub">${here.length? `從口袋名單裡「${esc(areaName)}」附近的 ${here.length} 家抽` : `從口袋名單 ${eats.length} 家裡抽${areaName?'（沒有在'+esc(areaName)+'附近的）':''}`}</div>
+      <div style="font-size:44px;line-height:1">🎲</div>
+      <h2 style="margin:0;font-size:24px">${esc(p.name)}</h2>
+      <div class="sub">${esc([p.type, shortArea(p.area)].filter(Boolean).join(' · '))}</div>
+      <a class="btn terra" href="${esc(gm.dir(dest(p),'driving'))}" target="_blank" rel="noopener">就它了，導航出發</a>
+      <a class="btn2" href="${esc(p.url||gm.search(dest(p)))}" target="_blank" rel="noopener">先看評價</a>
+      <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw">再抽一次</button><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">改抽類別</button></div>
+      <button class="link" data-act="closeSheet">算了</button></div>`);
+    return;
+  }
+  const c = pick(drawCats()); near.cat = c;
+  openSheet(`<div class="stack" style="padding:0 20px 20px;text-align:center">
+    <div class="sub">${eats.length? '抽一個類別' : '口袋名單還沒有吃的，先幫你抽一個類別'}</div>
+    <div style="font-size:44px;line-height:1">🎲</div>
+    <h2 style="margin:0;font-size:24px">今天吃「${esc(c)}」</h2>
+    ${has? `<a class="btn terra" href="${esc(nearLink(c))}" target="_blank" rel="noopener">看附近的${esc(c)}</a>` : `<div class="note amber">還沒定位，先在上面按定位或打地名，就能直接看附近的${esc(c)}。</div>`}
+    <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">再抽一次</button>${eats.length?'<button class="btn2" style="flex:1" data-act="nearDraw">抽口袋名單</button>':''}</div>
+    <button class="link" data-act="nearDrawClose">就這樣</button></div>`);
+};
+ACT.nearDrawClose = () => { closeSheet(); render(); };
 routes.nearby_after = () => { if(near.state==='idle') ACT.nearLocate(); };
 /* ================= 口袋名單 ================= */
 // 資料：{id,name,area,type,url,at,used:[{tripId,title}]}
