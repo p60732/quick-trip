@@ -292,34 +292,103 @@ function drawCats(){
   return NEAR_CATS.filter(c => !(c==='早午餐' && h>=15) && !(c==='宵夜' && h<20 && h>=5) && !(c==='親子餐廳' && h>=21));
 }
 function pick(list){ const l = list.length>1 ? list.filter(x=>(x.id||x)!==drawLast) : list; const x = l[Math.floor(Math.random()*l.length)]; drawLast = x.id||x; return x; }
-ACT.nearDraw = (el) => {
-  const mode = el && el.dataset.m;
+// 附近所有店：Google 地圖的店家清單要付費 API 才拿得到，這裡用 OpenStreetMap（免費）抓附近有名字的店，抽中再開 Google 地圖看評價、導航
+const OSM_Q = {
+  '咖啡': '[amenity=cafe]', '甜點': '[shop~"^(bakery|confectionery|pastry)$"]', '手搖飲': '[shop=tea]',
+  '_eat': '[amenity~"^(restaurant|fast_food|food_court)$"]'
+};
+let nearPlaces = {key:'', list:null, loading:false, err:''};
+function distM(a, b, c, d){ const R=6371000, r=Math.PI/180; const x=(d-b)*r*Math.cos((a+c)/2*r), y=(c-a)*r; return Math.round(Math.sqrt(x*x+y*y)*R); }
+async function loadNearPlaces(cat){
+  const key = near.lat.toFixed(3)+','+near.lng.toFixed(3)+'|'+cat;
+  if(nearPlaces.key===key && nearPlaces.list) return nearPlaces.list;
+  const sel = cat==='不限' ? ['[amenity~"^(restaurant|fast_food|food_court|cafe|ice_cream)$"]','[shop~"^(bakery|confectionery|pastry|tea)$"]'] : [OSM_Q[cat] || OSM_Q._eat];
+  let list = [];
+  for(const R of [1200, 3500]){
+    const q = `[out:json][timeout:20];(${sel.map(t=>`nwr(around:${R},${near.lat},${near.lng})${t}[name];`).join('')});out center 300;`;
+    let j = null;
+    for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
+      try{ const r = await fetch(host, {method:'POST', body:'data='+encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ j = await r.json(); break; } }catch(e){}
+    }
+    if(!j) throw new Error('net');
+    const seen = new Set();
+    list = j.elements.map(e=>{ const lat=e.lat||(e.center&&e.center.lat), lng=e.lon||(e.center&&e.center.lon); const t=e.tags||{};
+      return {id:'osm'+e.id, name:t['name:zh']||t.name, lat, lng, kind:t.cuisine||t.amenity||t.shop||'', dist: distM(near.lat, near.lng, lat, lng)}; })
+      .filter(x=>x.name && x.lat && !seen.has(x.name) && seen.add(x.name));
+    if(list.length >= 8) break;
+  }
+  nearPlaces = {key, list};
+  return list;
+}
+const KIND_ZH = {restaurant:'餐廳', fast_food:'小吃／速食', food_court:'美食街', cafe:'咖啡', ice_cream:'冰品', bakery:'麵包', confectionery:'甜點', pastry:'甜點', tea:'飲料店',
+  chinese:'中式', taiwanese:'台式', japanese:'日式', ramen:'拉麵', noodle:'麵', coffee_shop:'咖啡', burger:'漢堡', pizza:'披薩', italian:'義式', korean:'韓式', thai:'泰式', breakfast:'早餐', hot_pot:'火鍋', bubble_tea:'手搖飲', vegetarian:'素食', dumpling:'水餃', seafood:'海鮮', barbecue:'燒烤', sushi:'壽司', american:'美式', vietnamese:'越式', indian:'印度'};
+const kindZh = k => String(k||'').split(';').map(x=>KIND_ZH[x.trim()]).filter(Boolean)[0] || '';
+function drawShell(inner, src){
+  const cats = ['不限','小吃','正餐','咖啡','甜點','手搖飲'];
+  return `<div class="stack" style="padding:0 20px 20px;text-align:center">
+    <div class="seg" style="grid-template-columns:1fr 1fr" role="group" aria-label="從哪裡抽">
+      <button aria-pressed="${src==='all'}" data-act="nearDraw" data-src="all">附近所有店</button>
+      <button aria-pressed="${src==='pocket'}" data-act="nearDraw" data-src="pocket">只抽口袋名單</button></div>
+    ${src==='all'? `<div class="chips" style="justify-content:center;gap:6px">${cats.map(c=>`<button class="chip terra" style="min-height:34px" aria-pressed="${drawCat===c}" data-act="nearDraw" data-dc="${c}">${c}</button>`).join('')}</div>`:''}
+    ${inner}</div>`;
+}
+let drawCat = '不限';
+ACT.nearDraw = async (el) => {
+  const d = (el && el.dataset) || {};
+  if(d.src) LS.set('drawSrc', d.src);
+  if(d.dc) drawCat = d.dc;
+  const src = LS.get('drawSrc','all');
+  const mode = d.m;
   const areaName = near.manual || near.area || '';
-  const eats = pocket().filter(p=>p.type==='吃'||p.type==='喝');
-  const here = areaName ? eats.filter(p=>(p.area||'').includes(areaName) || areaName.includes(shortArea(p.area)||'@')) : [];
   const has = near.state==='ok' || !!near.manual;
-  if(mode!=='cat' && eats.length){
+  const again = `<div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw">再抽一次</button><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">改抽類別</button></div><button class="link" data-act="nearDrawClose">算了</button>`;
+  if(mode==='cat') return drawCategory();
+  if(src==='pocket'){
+    const eats = pocket().filter(p=>p.type==='吃'||p.type==='喝');
+    if(!eats.length){ openSheet(drawShell(`<div class="note amber" style="text-align:left">口袋名單還沒存吃的或喝的。先抽「附近所有店」，或到口袋名單存幾家。</div><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return; }
+    const here = areaName ? eats.filter(p=>(p.area||'').includes(areaName) || areaName.includes(shortArea(p.area)||'@')) : [];
     const pool = here.length ? here : eats; const p = pick(pool);
-    openSheet(`<div class="stack" style="padding:0 20px 20px;text-align:center">
-      <div class="sub">${here.length? `從口袋名單裡「${esc(areaName)}」附近的 ${here.length} 家抽` : `從口袋名單 ${eats.length} 家裡抽${areaName?'（沒有在'+esc(areaName)+'附近的）':''}`}</div>
-      <div style="font-size:44px;line-height:1">🎲</div>
-      <h2 style="margin:0;font-size:24px">${esc(p.name)}</h2>
+    openSheet(drawShell(`<div class="sub">${here.length? `從口袋名單裡「${esc(areaName)}」附近的 ${here.length} 家抽` : `從口袋名單 ${eats.length} 家裡抽${areaName?'（沒有在'+esc(areaName)+'附近的）':''}`}</div>
+      <div style="font-size:44px;line-height:1">🎲</div><h2 style="margin:0;font-size:24px">${esc(p.name)}</h2>
       <div class="sub">${esc([p.type, shortArea(p.area)].filter(Boolean).join(' · '))}</div>
       <a class="btn terra" href="${esc(gm.dir(dest(p),'driving'))}" target="_blank" rel="noopener">就它了，導航出發</a>
-      <a class="btn2" href="${esc(p.url||gm.search(dest(p)))}" target="_blank" rel="noopener">先看評價</a>
-      <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw">再抽一次</button><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">改抽類別</button></div>
-      <button class="link" data-act="closeSheet">算了</button></div>`);
+      <a class="btn2" href="${esc(p.url||gm.search(dest(p)))}" target="_blank" rel="noopener">先看評價</a>${again}`, src));
     return;
   }
+  // 附近所有店
+  if(near.state!=='ok' || near.lat==null){
+    openSheet(drawShell(`<div class="note amber" style="text-align:left">要先 GPS 定位才能抽附近的店${near.manual?'（打地名的話只能抽口袋名單或類別）':''}。</div>
+      <button class="btn2" data-act="nearDraw" data-m="cat">先抽一個類別</button><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return;
+  }
+  openSheet(drawShell(`<div style="font-size:44px;line-height:1">🎲</div><div class="sub" role="status">正在找你附近的店…</div>`, src));
+  let list;
+  try{ list = await loadNearPlaces(drawCat); }
+  catch(e){ if(!$('#layer').innerHTML) return; openSheet(drawShell(`<div class="note amber" style="text-align:left">附近店家清單抓不到（網路不穩或服務太忙），等一下再抽，或先抽一個類別。</div><button class="btn2" data-act="nearDraw" data-m="cat">抽類別</button><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return; }
+  if(!$('#layer').innerHTML) return; // 使用者已經關掉
+  if(!list.length){ openSheet(drawShell(`<div class="note amber" style="text-align:left">附近找不到「${esc(drawCat)}」的店，換一個類別試試。</div><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return; }
+  const p = pick(list);
+  const km = p.dist>=1000 ? (p.dist/1000).toFixed(1)+' 公里' : p.dist+' 公尺';
+  const walk = p.dist < 1200;
+  openSheet(drawShell(`<div class="sub">從附近 ${list.length} 家裡抽</div>
+    <div style="font-size:44px;line-height:1">🎲</div><h2 style="margin:0;font-size:24px">${esc(p.name)}</h2>
+    <div class="sub">${esc([kindZh(p.kind), '距離約 '+km].filter(Boolean).join(' · '))}</div>
+    <a class="btn2" href="${esc(gm.near(p.name, p.lat.toFixed(6), p.lng.toFixed(6)))}" target="_blank" rel="noopener">先看 Google 評價、營業時間</a>
+    <a class="btn terra" href="${esc('https://www.google.com/maps/dir/?api=1&destination='+p.lat+','+p.lng+'&travelmode='+(walk?'walking':'driving'))}" target="_blank" rel="noopener">就它了，${walk?'走路':'開車'}導航</a>
+    <button class="link" data-act="drawSave" data-id="${esc(p.id)}">存到口袋名單</button>${again}
+    <div class="hint">店家清單來自 OpenStreetMap，可能少數已歇業，出發前先看一下評價和營業時間。</div>`, src));
+};
+ACT.drawSave = el => { const p=(nearPlaces.list||[]).find(x=>x.id===el.dataset.id); if(!p) return; pkStore({name:p.name, area:near.area||'', type: /cafe|tea|bakery|confectionery|pastry|ice_cream|coffee|bubble/.test(p.kind)?'喝':'吃', url: gm.near(p.name, p.lat.toFixed(6), p.lng.toFixed(6))}); el.textContent='已存到口袋名單'; el.disabled=true; };
+function drawCategory(){
+  const has = near.state==='ok' || !!near.manual;
   const c = pick(drawCats()); near.cat = c;
   openSheet(`<div class="stack" style="padding:0 20px 20px;text-align:center">
-    <div class="sub">${eats.length? '抽一個類別' : '口袋名單還沒有吃的，先幫你抽一個類別'}</div>
+    <div class="sub">抽一個類別</div>
     <div style="font-size:44px;line-height:1">🎲</div>
     <h2 style="margin:0;font-size:24px">今天吃「${esc(c)}」</h2>
     ${has? `<a class="btn terra" href="${esc(nearLink(c))}" target="_blank" rel="noopener">看附近的${esc(c)}</a>` : `<div class="note amber">還沒定位，先在上面按定位或打地名，就能直接看附近的${esc(c)}。</div>`}
-    <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">再抽一次</button>${eats.length?'<button class="btn2" style="flex:1" data-act="nearDraw">抽口袋名單</button>':''}</div>
+    <div style="display:flex;gap:8px"><button class="btn2" style="flex:1" data-act="nearDraw" data-m="cat">再抽一次</button><button class="btn2" style="flex:1" data-act="nearDraw">抽一家店</button></div>
     <button class="link" data-act="nearDrawClose">就這樣</button></div>`);
-};
+}
 ACT.nearDrawClose = () => { closeSheet(); render(); };
 routes.nearby_after = () => { if(near.state==='idle') ACT.nearLocate(); };
 /* ================= 口袋名單 ================= */
