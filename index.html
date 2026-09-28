@@ -375,18 +375,32 @@ ACT.nearDraw = async (el) => {
   catch(e){ if(!$('#layer').innerHTML) return; openSheet(drawShell(`<div class="note amber" style="text-align:left">附近店家清單抓不到（網路不穩或服務太忙），等一下再抽，或先抽一個類別。</div><button class="btn2" data-act="nearDraw" data-m="cat">抽類別</button><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return; }
   if(!$('#layer').innerHTML) return; // 使用者已經關掉
   if(!list.length){ openSheet(drawShell(`<div class="note amber" style="text-align:left">附近找不到「${esc(drawCat)}」的店，換一個類別試試。</div><button class="link" data-act="nearDrawClose">關閉</button>`, src)); return; }
-  const p = pick(list);
-  const km = p.dist>=1000 ? (p.dist/1000).toFixed(1)+' 公里' : p.dist+' 公尺';
-  const walk = p.dist < 1200;
-  openSheet(drawShell(`<div class="sub">從附近 ${list.length} 家裡抽</div>
-    <div style="font-size:44px;line-height:1">🎲</div><h2 style="margin:0;font-size:24px">${esc(p.name)}</h2>
-    <div class="sub">${esc([kindZh(p.kind), '距離約 '+km].filter(Boolean).join(' · '))}</div>
-    <a class="btn2" href="${esc(gm.near(p.name, p.lat.toFixed(6), p.lng.toFixed(6)))}" target="_blank" rel="noopener">先看 Google 評價、營業時間</a>
-    <a class="btn terra" href="${esc('https://www.google.com/maps/dir/?api=1&destination='+p.lat+','+p.lng+'&travelmode='+(walk?'walking':'driving'))}" target="_blank" rel="noopener">就它了，${walk?'走路':'開車'}導航</a>
-    <button class="link" data-act="drawSave" data-id="${esc(p.id)}">存到口袋名單</button>${again}
-    <div class="hint">店家清單來自 OpenStreetMap，可能少數已歇業，出發前先看一下評價和營業時間。</div>`, src));
+  if(d.m!=='pick' || !drawBatch.length || drawBatch.some(id=>!list.find(x=>x.id===id))) {
+    if(d.m!=='pick'){ const shuffled = list.slice().sort(()=>Math.random()-.5); drawBatch = shuffled.slice(0,8).sort((a,b)=>a.dist-b.dist).map(x=>x.id); drawPicked=''; }
+  }
+  if(d.m==='pick'){ const pool = drawBatch.filter(id=>id!==drawPicked); drawPicked = pool[Math.floor(Math.random()*pool.length)] || drawBatch[0]; }
+  const batch = drawBatch.map(id=>list.find(x=>x.id===id)).filter(Boolean);
+  const km = x => x.dist>=1000 ? (x.dist/1000).toFixed(1)+' 公里' : x.dist+' 公尺';
+  const rows = batch.map(x=>{ const on = x.id===drawPicked; const walk = x.dist<1200;
+    return `<div class="rowitem" id="dr_${esc(x.id)}" style="gap:6px;padding-right:4px;text-align:left;${on?'background:var(--terra-l);':''}">
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${on?'🎲 ':''}${esc(x.name)}</b>
+        <span class="sub" style="font-size:12px">${esc([kindZh(x.kind), km(x)].filter(Boolean).join(' · '))}</span></span>
+      <a class="act" style="border:none;padding:0 6px" href="${esc(gm.near(x.name, x.lat.toFixed(6), x.lng.toFixed(6)))}" target="_blank" rel="noopener">評分</a>
+      <a class="act" style="border:none;padding:0 6px" href="${esc('https://www.google.com/maps/dir/?api=1&destination='+x.lat+','+x.lng+'&travelmode='+(walk?'walking':'driving'))}" target="_blank" rel="noopener">導航</a>
+      <button class="act" style="border:none;padding:0 6px" data-act="drawSave" data-id="${esc(x.id)}" aria-label="把${esc(x.name)}存到口袋名單">存</button>
+    </div>`; }).join('');
+  const picked = batch.find(x=>x.id===drawPicked);
+  openSheet(drawShell(`<div class="sub">附近找到 ${list.length} 家，隨機挑 ${batch.length} 家（近的在前）</div>
+    ${picked? `<div class="note ok" role="status" style="text-align:left"><b>🎲 抽中：${esc(picked.name)}</b><br>先按「評分」看 Google 星等和營業時間，OK 就按「導航」。</div>`:''}
+    <div class="card list" style="max-height:34vh;overflow:auto">${rows}</div>
+    <div style="display:flex;gap:8px"><button class="btn terra" style="flex:1.4" data-act="nearDraw" data-m="pick">🎲 ${picked?'再抽一次':'從這幾家抽一家'}</button><button class="btn2" style="flex:1" data-act="nearDraw">換一批</button></div>
+    <div style="display:flex;gap:8px"><button class="link" style="flex:1" data-act="nearDraw" data-m="cat">改抽類別</button><button class="link" style="flex:1" data-act="nearDrawClose">關閉</button></div>
+    <div class="hint">店家清單來自 OpenStreetMap（免費，沒有評分），少數可能已歇業；Google 星等請按「評分」看。</div>`, src));
+  if(picked){ const r=document.getElementById('dr_'+picked.id); if(r) r.scrollIntoView({block:'nearest'}); }
 };
-ACT.drawSave = el => { const p=(nearPlaces.list||[]).find(x=>x.id===el.dataset.id); if(!p) return; pkStore({name:p.name, area:near.area||'', type: /cafe|tea|bakery|confectionery|pastry|ice_cream|coffee|bubble/.test(p.kind)?'喝':'吃', url: gm.near(p.name, p.lat.toFixed(6), p.lng.toFixed(6))}); el.textContent='已存到口袋名單'; el.disabled=true; };
+let drawBatch = [], drawPicked = '';
+ACT.drawSave = el => { const p=(nearPlaces.list||[]).find(x=>x.id===el.dataset.id); if(!p) return; pkStore({name:p.name, area:near.area||'', type: /cafe|tea|bakery|confectionery|pastry|ice_cream|coffee|bubble/.test(p.kind)?'喝':'吃', url: gm.near(p.name, p.lat.toFixed(6), p.lng.toFixed(6))}); el.textContent='已存'; el.disabled=true; toast('存到口袋名單了'); };
 function drawCategory(){
   const has = near.state==='ok' || !!near.manual;
   const c = pick(drawCats()); near.cat = c;
