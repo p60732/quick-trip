@@ -299,17 +299,26 @@ const OSM_Q = {
 };
 let nearPlaces = {key:'', list:null, loading:false, err:''};
 function distM(a, b, c, d){ const R=6371000, r=Math.PI/180; const x=(d-b)*r*Math.cos((a+c)/2*r), y=(c-a)*r; return Math.round(Math.sqrt(x*x+y*y)*R); }
-async function loadNearPlaces(cat){
+const nearPending = {};
+function loadNearPlaces(cat){
   const key = near.lat.toFixed(3)+','+near.lng.toFixed(3)+'|'+cat;
-  if(nearPlaces.key===key && nearPlaces.list) return nearPlaces.list;
+  if(nearPlaces.key===key && nearPlaces.list) return Promise.resolve(nearPlaces.list);
+  if(!nearPending[key]) nearPending[key] = fetchNearPlaces(cat, key).finally(()=>{ delete nearPending[key]; });
+  return nearPending[key];
+}
+async function fetchNearPlaces(cat, key){
   const sel = cat==='不限' ? ['[amenity~"^(restaurant|fast_food|food_court|cafe|ice_cream)$"]','[shop~"^(bakery|confectionery|pastry|tea)$"]'] : [OSM_Q[cat] || OSM_Q._eat];
   let list = [];
-  for(const R of [1200, 3500]){
-    const q = `[out:json][timeout:20];(${sel.map(t=>`nwr(around:${R},${near.lat},${near.lng})${t}[name];`).join('')});out center 300;`;
+  for(const R of [1500, 4000]){
+    const q = `[out:json][timeout:20];(${sel.map(t=>`nwr(around:${R},${near.lat},${near.lng})${t}[name];`).join('')});out center 250;`;
+    // 兩個伺服器同時問，誰先回用誰；8 秒沒回就放棄
+    const ctl = new AbortController(); const timer = setTimeout(()=>ctl.abort(), 8000);
     let j = null;
-    for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
-      try{ const r = await fetch(host, {method:'POST', body:'data='+encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ j = await r.json(); break; } }catch(e){}
-    }
+    try{
+      j = await Promise.any(['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'].map(host =>
+        fetch(host, {method:'POST', body:'data='+encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}, signal:ctl.signal})
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))));
+    }catch(e){} finally{ clearTimeout(timer); ctl.abort(); }
     if(!j) throw new Error('net');
     const seen = new Set();
     list = j.elements.map(e=>{ const lat=e.lat||(e.center&&e.center.lat), lng=e.lon||(e.center&&e.center.lon); const t=e.tags||{};
@@ -593,6 +602,7 @@ ACT.nearLocate = () => {
   near.state='locating'; near.manual=''; render();
   navigator.geolocation.getCurrentPosition(async p=>{
     near.lat=p.coords.latitude; near.lng=p.coords.longitude; near.acc=p.coords.accuracy; near.state='ok'; near.area=''; render();
+    if(LS.get('drawSrc','all')==='all') loadNearPlaces(drawCat).catch(()=>{});  // 先在背景抓好，按抽的時候就不用等
     try{
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${near.lat}&lon=${near.lng}&zoom=14&accept-language=zh-TW`);
       const j = await r.json(); const a = j.address||{};
